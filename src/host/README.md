@@ -2,9 +2,9 @@
 
 Machine-side integration boundary for ARTEMIS, Android and verified Harness Host APIs.
 
-## Current implementation
+## ARTEMIS HTTP client
 
-`artemis-http.mjs` implements the first framework-neutral ARTEMIS boundary using Node's built-in Fetch API. It deliberately:
+`artemis-http.mjs` implements the framework-neutral ARTEMIS boundary using Node's built-in Fetch API. It deliberately:
 
 - defaults to `http://127.0.0.1:8000`;
 - accepts explicit loopback hosts only;
@@ -13,4 +13,12 @@ Machine-side integration boundary for ARTEMIS, Android and verified Harness Host
 - enforces request timeouts, JSON content type and response-size limits;
 - normalizes responses into small project-owned objects rather than forwarding raw upstream payloads.
 
-Harness-specific route registration is intentionally a separate module to keep ARTEMIS transport testable without Harness.
+## Harness Web route
+
+`harness-routes.mjs` owns the Web-profile browser boundary. It uses the verified Harness `webServer.register(...)` seam and currently registers one exact read-only route:
+
+```text
+GET /dsh-artemis/v1/overview
+```
+
+The route exposes only normalized project data. It does not expose the ARTEMIS base URL or upstream live-stream URL, accepts only GET/HEAD, returns `no-store`, and maps failures to bounded error shapes. An unavailable ARTEMIS instance is represented as a normal `offline` overview so the UI can render that state without treating it as an exceptional browser failure.
