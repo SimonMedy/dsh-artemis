@@ -16,22 +16,38 @@ Once implementation starts:
 
 Use fixtures rather than requiring ARTEMIS or ADB for these tests.
 
-## Layer 3 — ARTEMIS adapter integration
+## Layer 3 — fake ARTEMIS integration
 
-Run against a small fake HTTP server matching verified ARTEMIS routes. This checks request paths, status handling, MJPEG metadata where applicable, timeouts and malformed responses without booting Android.
+Run against a small local HTTP server matching only routes we have verified from ARTEMIS source. This checks request paths, status handling, timeout/error behavior and later MJPEG handling without requiring Python, ADB, a model provider or an emulator.
 
-## Layer 4 — Harness compatibility integration
+The fake server is the default adapter integration test target.
 
-CI should check out the pinned DeepSeek Harness SHA and verify that the plugin builds/loads against the actual current plugin interfaces. We will add this only after the package contract is verified rather than guessing a build command.
+## Layer 4 — pinned Harness compatibility
+
+GitHub Actions checks out DeepSeek Harness into a sibling directory at the SHA in `docs/upstreams.md`. The plugin is then built/installed using the actual supported external-plugin mechanism. This job must fail when upstream types or installation semantics drift.
+
+We do not vendor or submodule Harness into `dsh-artemis`.
 
 ## Layer 5 — browser E2E
 
-For UI milestones, use Playwright in GitHub Actions against Harness with the plugin enabled and a fake ARTEMIS service. Cover sidebar tab creation, resize, offline/ready transitions, refresh/reconnect and screen preview.
+Use Playwright against a real pinned Harness web instance with `dsh-artemis` enabled and fake ARTEMIS behind it. Cover:
 
-## Layer 6 — real Android smoke
+- Android tab registration/opening;
+- native sidebar layout and resize;
+- Offline → Ready and error transitions;
+- refresh/reconnect;
+- screenshot/preview rendering;
+- controls when introduced;
+- no console/runtime errors.
 
-A real emulator/ARTEMIS smoke test is desirable but should not gate every PR initially because Android virtualization and ARTEMIS model/runtime dependencies are heavier. Add a dedicated workflow when the MVP is stable. It should validate one supported emulator/device path and publish traces/screenshots on failure.
+Publish Playwright report, screenshots and traces on failure with short artifact retention.
+
+## Layer 6 — real ARTEMIS + Android smoke
+
+A separate heavier workflow should eventually run one supported emulator/device path with real ARTEMIS. It should not gate every small PR initially because Android virtualization and ARTEMIS runtime/model dependencies are substantially heavier and may require credentials or infrastructure unavailable to ordinary PRs.
+
+This smoke becomes important for releases and changes touching streaming, ADB/device control or trace integration.
 
 ## CI policy
 
-GitHub Actions is the primary reproducible environment. Do not require the user to manually run build/test steps that can be encoded in CI.
+GitHub Actions is the primary reproducible environment. Contributors should not be required to manually run installation/build/E2E steps that can be encoded in CI.
