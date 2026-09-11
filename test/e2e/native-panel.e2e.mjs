@@ -16,7 +16,6 @@ if (!authenticatedUrl.startsWith('http://127.0.0.1:')) throw new Error('Harness 
 await mkdir(artifactDir, { recursive: true })
 const browser = await chromium.launch({ headless: true })
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
-
 const browserSignals = []
 page.on('pageerror', (error) => browserSignals.push(`pageerror:${error.message}`))
 page.on('console', (message) => {
@@ -135,7 +134,7 @@ try {
   const diagnostics = await bootDiagnostics()
   const summary = error instanceof Error ? error.message.split('\n')[0] : String(error)
   const signals = browserSignals.slice(-3).join(' | ')
-  console.error(`[dsh-artemis-e2e] phase=${prase} error=${summary} diagnostics=${JSON.stringify(diagnostics)}${signals ? ` browser=${signals}` : ''}`)
+  console.error(`[dsh-artemis-e2e] phase=${phase} error=${summary} diagnostics=${JSON.stringify(diagnostics)}${signals ? ` browser=${signals}` : ''}`)
   throw error
 } finally {
   await browser.close()
