@@ -18,8 +18,8 @@ async function exists(filePath, accessImpl = access) {
 
 export async function validateArtemisRoot(root, { accessImpl = access } = {}) {
   if (typeof root !== 'string' || !root.trim()) throw new TypeError('ARTEMIS root is required')
-  const resolved = path.resolve(root)
-  if (!path.isAbsolute(resolved)) throw new TypeError('ARTEMIS root must resolve to an absolute path')
+  if (!path.isAbsolute(root)) throw new TypeError('ARTEMIS root must be an absolute path')
+  const resolved = path.normalize(root)
 
   const missing = []
   for (const relative of REQUIRED_ARTEMIS_FILES) {

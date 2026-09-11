@@ -27,9 +27,10 @@ async function fakeArtemisRoot({ withPosixVenv = false, withWindowsVenv = false 
   return root
 }
 
-test('validates the existing ARTEMIS root instead of scanning arbitrary locations', async () => {
+test('validates an explicit absolute ARTEMIS root instead of scanning arbitrary locations', async () => {
   const root = await fakeArtemisRoot()
-  assert.equal(await validateArtemisRoot(root), path.resolve(root))
+  assert.equal(await validateArtemisRoot(root), path.normalize(root))
+  await assert.rejects(validateArtemisRoot('./relative-artemis'), /absolute path/)
 
   const invalid = await mkdtemp(path.join(os.tmpdir(), 'not-artemis-'))
   await assert.rejects(validateArtemisRoot(invalid), /missing required files/)
