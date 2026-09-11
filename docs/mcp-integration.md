@@ -38,27 +38,9 @@ ARTEMIS_DESKTOP_NOTIFY=true
 
 `dsh-artemis` mirrors that process contract instead of depending on `uv` being globally available at Harness startup.
 
-A generated Harness row has this shape:
-
-```yaml
-- id: "mcp-artemis"
-  name: "@deepseek-ai/dsh-mcp-client"
-  config:
-    serverName: "artemis"
-    transport: "stdio"
-    command: "/path/to/artemis/.venv/bin/python"
-    args: ["-m","mcp_server"]
-    cwd: "/path/to/artemis"
-    env:
-      PYTHONUNBUFFERED: "1"
-      PYTHONPATH: "/path/to/artemis"
-      ARTEMIS_DESKTOP_NOTIFY: "true"
-    failOnStartupError: false
-```
-
 Harness namespaces discovered tools by MCP server name, so the model sees `mcp__artemis__mobile_diagnose`, `mcp__artemis__mobile_run_task`, `mcp__artemis__mobile_manage_task`, `mcp__artemis__mobile_get_device_state`, and `mcp__artemis__mobile_inspect_trace`.
 
-## Generator
+## MCP configuration generator
 
 The package ships a non-destructive helper:
 
@@ -76,6 +58,22 @@ ARTEMIS_ROOT=/absolute/path/to/artemis dsh-artemis-mcp-config
 
 It does **not** scan arbitrary home directories, execute discovery shell commands, edit Harness profiles or modify ARTEMIS. Profile mutation will only be added after the Harness profile-patch workflow is proven safe and reversible.
 
+## ARTEMIS behavioral rules as a native Harness skill
+
+ARTEMIS' installer also installs `mcp_server/rules.md` for supported clients. Harness is not currently an ARTEMIS installer target, so `dsh-artemis` adapts that same file to Harness' native runtime skill registry instead of copying or rewriting it.
+
+The adapter:
+
+- validates the explicit ARTEMIS root using the same checks as MCP setup;
+- reads exactly `<artemis-root>/mcp_server/rules.md`;
+- enforces a bounded file size and valid UTF-8;
+- preserves the Markdown body byte-for-text without editing its instructions;
+- exposes it as the runtime skill `artemis-mobile-testing` through `ctx.skills.register(...)`;
+- points the skill resource base at `<artemis-root>/mcp_server` so relative references remain anchored to the upstream installation;
+- returns Harness' disposer unchanged so lifecycle teardown remains native.
+
+The adapter is intentionally separate from the main Host plugin until compatibility CI proves that the `skills` service is present in every Harness profile we choose to support. This avoids making the Android UI fail merely because an agent-skill service is absent from a profile.
+
 ## Why MCP is not routed through the UI plugin
 
 The MCP lifecycle belongs to Harness' MCP bridge: process spawning, tool discovery, reconnects, cancellation and tool registration are already implemented there. Reimplementing that inside `dsh-artemis` would duplicate Harness and couple the UI to agent automation.
@@ -91,12 +89,6 @@ The UI and MCP can therefore fail independently:
 
 The panel should eventually display both statuses separately.
 
-## ARTEMIS behavioral rules
-
-ARTEMIS' installer also installs `mcp_server/rules.md` for supported clients. Harness is not currently an ARTEMIS installer target, so `dsh-artemis` must provide equivalent behavior through a supported Harness instruction/skill surface.
-
-Do not silently rewrite those rules. Track them against the pinned ARTEMIS revision and preserve their diagnosis-first, Flash/Pro and live-UI exploration guidance.
-
 ## Target installation flow
 
 1. ARTEMIS is installed normally.
@@ -104,7 +96,7 @@ Do not silently rewrite those rules. Track them against the pinned ARTEMIS revis
 3. The ARTEMIS root is provided explicitly or selected through a future native setting flow.
 4. `dsh-artemis` validates that root and resolves its Python exactly like the ARTEMIS installer.
 5. One `@deepseek-ai/dsh-mcp-client` row is generated/installed with `serverName: artemis`.
-6. ARTEMIS rules are exposed through the native Harness instruction mechanism.
+6. The upstream `mcp_server/rules.md` is registered as the native runtime skill `artemis-mobile-testing`.
 7. Harness launches the official MCP server over stdio; the UI Host independently uses the loopback daemon API.
 
 ## Security
@@ -115,3 +107,4 @@ Do not silently rewrite those rules. Track them against the pinned ARTEMIS revis
 - Do not copy unrelated ambient secrets into MCP config. Harness' MCP bridge deliberately scrubs secret-like environment variables.
 - Keep ARTEMIS daemon access on loopback unless a supported remote mode is explicitly configured.
 - Do not expose generic subprocess or shell execution to implement setup.
+- Treat ARTEMIS rules as trusted local instructions only after validating the configured ARTEMIS root; do not load rule content from browser-provided paths or remote URLs.
