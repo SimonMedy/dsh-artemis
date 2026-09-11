@@ -2,7 +2,7 @@
 
 `dsh-artemis` has two independent integration planes. Keeping them separate is deliberate.
 
-## 1. Human UI plane
+## Human UI plane
 
 The Harness right-sidebar plugin talks to the local ARTEMIS daemon HTTP API through the `dsh-artemis` Host adapter:
 
@@ -18,51 +18,65 @@ ARTEMIS daemon (default 127.0.0.1:8000)
 
 This plane powers device status, screen preview/live view, task state and future manual controls. It does **not** expose ARTEMIS tools to the model.
 
-## 2. Agent MCP plane
+## Agent MCP plane
 
-DeepSeek Harness already ships an MCP bridge: `@deepseek-ai/dsh-mcp-client`. One configured instance connects to one external MCP server and registers its tools as native Harness tools.
+DeepSeek Harness ships `@deepseek-ai/dsh-mcp-client`. One configured instance connects to one external MCP server and registers its tools as native Harness tools.
 
-ARTEMIS' official server supports stdio and is started with either:
+ARTEMIS' own installer resolves its preferred Python as follows:
 
-```bash
-python -m mcp_server
+- Windows: `<artemis-root>/.venv/Scripts/python.exe` when present;
+- other platforms: `<artemis-root>/.venv/bin/python` when present;
+- otherwise the Python running the ARTEMIS installer.
+
+It then launches the official MCP server as `python -m mcp_server` from the ARTEMIS root and supplies:
+
+```text
+PYTHONUNBUFFERED=1
+PYTHONPATH=<artemis-root>
+ARTEMIS_DESKTOP_NOTIFY=true
 ```
 
-or, from an ARTEMIS checkout:
+`dsh-artemis` mirrors that process contract instead of depending on `uv` being globally available at Harness startup.
 
-```bash
-uv run artemis mcp
-```
-
-For Harness we use the official server over stdio. A minimal Cordis row is:
+A generated Harness row has this shape:
 
 ```yaml
-- id: mcp-artemis
-  name: '@deepseek-ai/dsh-mcp-client'
+- id: "mcp-artemis"
+  name: "@deepseek-ai/dsh-mcp-client"
   config:
-    serverName: artemis
-    transport: stdio
-    command: uv
-    args: ['run', 'artemis', 'mcp']
-    cwd: '/absolute/path/to/artemis'
+    serverName: "artemis"
+    transport: "stdio"
+    command: "/path/to/artemis/.venv/bin/python"
+    args: ["-m","mcp_server"]
+    cwd: "/path/to/artemis"
+    env:
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: "/path/to/artemis"
+      ARTEMIS_DESKTOP_NOTIFY: "true"
     failOnStartupError: false
 ```
 
-`cwd` must point at the ARTEMIS installation/checkout whose `uv run artemis mcp` works. We do not vendor or reinstall ARTEMIS inside `dsh-artemis`.
+Harness namespaces discovered tools by MCP server name, so the model sees `mcp__artemis__mobile_diagnose`, `mcp__artemis__mobile_run_task`, `mcp__artemis__mobile_manage_task`, `mcp__artemis__mobile_get_device_state`, and `mcp__artemis__mobile_inspect_trace`.
 
-Harness namespaces discovered tools by MCP server name, so the model sees:
+## Generator
 
-```text
-mcp__artemis__mobile_diagnose
-mcp__artemis__mobile_run_task
-mcp__artemis__mobile_manage_task
-mcp__artemis__mobile_get_device_state
-mcp__artemis__mobile_inspect_trace
+The package ships a non-destructive helper:
+
+```bash
+dsh-artemis-mcp-config --artemis-root /absolute/path/to/artemis
 ```
 
-The raw ARTEMIS tool names remain unchanged on the MCP wire. The `mcp__artemis__` prefix is a Harness-side collision-avoidance namespace.
+or:
 
-## Why the MCP is not routed through the UI plugin
+```bash
+ARTEMIS_ROOT=/absolute/path/to/artemis dsh-artemis-mcp-config
+```
+
+`ARTEMIS_PYTHON` / `--python` may override interpreter discovery. The helper validates `pyproject.toml`, `mcp_server/__main__.py` and `mcp_server/rules.md`, resolves the interpreter, and writes exactly one Cordis row to stdout.
+
+It does **not** scan arbitrary home directories, execute discovery shell commands, edit Harness profiles or modify ARTEMIS. Profile mutation will only be added after the Harness profile-patch workflow is proven safe and reversible.
+
+## Why MCP is not routed through the UI plugin
 
 The MCP lifecycle belongs to Harness' MCP bridge: process spawning, tool discovery, reconnects, cancellation and tool registration are already implemented there. Reimplementing that inside `dsh-artemis` would duplicate Harness and couple the UI to agent automation.
 
@@ -72,35 +86,32 @@ The UI and MCP can therefore fail independently:
 | --- | --- | --- |
 | Ready | Connected | Full experience |
 | Ready | Disconnected | Human panel works; model has no ARTEMIS tools |
-| Offline | Connected | Model may diagnose/start work, while the admin daemon UI is unavailable |
+| Offline | Connected | Model can still use MCP tools that recover/diagnose the environment |
 | Offline | Disconnected | ARTEMIS unavailable |
 
 The panel should eventually display both statuses separately.
 
 ## ARTEMIS behavioral rules
 
-ARTEMIS' own installer does more than register an MCP server: it also installs its `mcp_server/rules.md` instructions for supported IDEs. Harness is not currently an ARTEMIS installer target, so `dsh-artemis` must provide the equivalent behavior through Harness' supported instruction/skill mechanism.
+ARTEMIS' installer also installs `mcp_server/rules.md` for supported clients. Harness is not currently an ARTEMIS installer target, so `dsh-artemis` must provide equivalent behavior through a supported Harness instruction/skill surface.
 
-Do not silently rewrite those rules. The integration should track the pinned ARTEMIS version and preserve its guidance, including diagnosis-first behavior, Flash/Pro routing and live UI exploration discipline.
+Do not silently rewrite those rules. Track them against the pinned ARTEMIS revision and preserve their diagnosis-first, Flash/Pro and live-UI exploration guidance.
 
-## Installation strategy for dsh-artemis
+## Target installation flow
 
-The target user experience is:
-
-1. ARTEMIS is installed normally by the user.
+1. ARTEMIS is installed normally.
 2. The user installs `dsh-artemis` into a Harness profile.
-3. `dsh-artemis` detects or is given the ARTEMIS root/interpreter.
-4. The integration adds/configures one `@deepseek-ai/dsh-mcp-client` row with `serverName: artemis`.
-5. The ARTEMIS rules are made available through the native Harness instruction mechanism.
-6. Harness starts; the MCP bridge launches the official ARTEMIS MCP server over stdio.
-7. The UI Host independently connects to the ARTEMIS HTTP daemon on loopback.
-
-Automatic mutation of the user's Harness profile is **not yet implemented**. Until the config/discovery flow is proven cross-platform, the MCP row above is the supported reference contract.
+3. The ARTEMIS root is provided explicitly or selected through a future native setting flow.
+4. `dsh-artemis` validates that root and resolves its Python exactly like the ARTEMIS installer.
+5. One `@deepseek-ai/dsh-mcp-client` row is generated/installed with `serverName: artemis`.
+6. ARTEMIS rules are exposed through the native Harness instruction mechanism.
+7. Harness launches the official MCP server over stdio; the UI Host independently uses the loopback daemon API.
 
 ## Security
 
 - Never route arbitrary MCP commands from browser input.
 - `command`, `args` and `cwd` are Host/profile configuration, not browser-editable free-form fields.
-- Do not copy ARTEMIS API keys into Harness MCP configuration unless ARTEMIS explicitly requires an override. The child environment behavior of Harness' MCP bridge is security-sensitive and intentionally scrubs secret-like ambient variables.
-- Keep the ARTEMIS daemon on loopback unless the user explicitly configures a supported remote setup.
-- Do not expose a generic subprocess or shell endpoint to implement MCP setup.
+- Do not scan arbitrary filesystem locations to guess an ARTEMIS installation.
+- Do not copy unrelated ambient secrets into MCP config. Harness' MCP bridge deliberately scrubs secret-like environment variables.
+- Keep ARTEMIS daemon access on loopback unless a supported remote mode is explicitly configured.
+- Do not expose generic subprocess or shell execution to implement setup.
