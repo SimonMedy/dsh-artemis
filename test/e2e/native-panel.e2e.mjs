@@ -26,78 +26,56 @@ let phase = 'bootstrap'
 let createdWorkspaceId = null
 let createdSessionId = null
 
-async function bootDiagnostics() {
+async function diagnostics() {
   return page.evaluate(({ workspaceId, sessionId }) => {
-    const boot = window.__DSH_BOOT__
-    const entries = boot && Array.isArray(boot.entries)
-      ? boot.entries.map((entry) => ({
-          id: entry && typeof entry.id === 'string' ? entry.id : null,
-          inject: Array.isArray(entry?.inject) ? entry.inject : [],
-          external: Array.isArray(entry?.external) ? entry.external : [],
-          url: typeof entry?.url === 'string' ? entry.url.replace(/([?&]token=)[^&]+/g, '$1<redacted>') : null,
-        }))
-      : []
+    const entries = Array.isArray(window.__DSH_BOOT__?.entries) ? window.__DSH_BOOT__.entries : []
     return {
       createdWorkspaceId: workspaceId,
       createdSessionId: sessionId,
-      bootPresent: Boolean(boot),
-      entryIds: entries.map((entry) => entry.id),
-      artemisEntry: entries.find((entry) => entry.id === 'dsh-artemis') ?? null,
+      bootPresent: Boolean(window.__DSH_BOOT__),
+      entryIds: entries.map((entry) => entry?.id ?? null),
+      artemisEntry: entries.find((entry) => entry?.id === 'dsh-artemis') ?? null,
       loaderPresent: Boolean(window.__ModuleLoader__),
       guidePresent: Boolean(document.querySelector('[data-sidebar-right-guide]')),
       expandPresent: Boolean(document.querySelector('[data-sidebar-right-expand]')),
-      workspaceRowCount: document.querySelectorAll('[role="treeitem"][aria-expanded]').length,
-      sessionRowCount: document.querySelectorAll('[role="treeitem"][aria-selected]').length,
+      workspaceRows: document.querySelectorAll('[role="treeitem"][aria-expanded]').length,
+      sessionRows: document.querySelectorAll('[role="treeitem"][aria-selected]').length,
     }
   }, { workspaceId: createdWorkspaceId, sessionId: createdSessionId })
     .catch(() => ({ diagnosticsFailed: true, createdWorkspaceId, createdSessionId }))
 }
 
 async function callHarnessRpc(endpoint, method, args) {
-  return page.evaluate(async ({ endpointPath, methodName, rpcArgs }) => {
+  return page.evaluate(async ({ endpoint, method, args }) => {
     const rpcId = crypto.randomUUID()
-    const response = await fetch(`/api/${endpointPath}`, {
+    const response = await fetch(`/api/${endpoint}`, {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        type: 'client-request',
-        rpcId,
-        method: methodName,
-        payload: { args: rpcArgs },
-      }),
+      body: JSON.stringify({ type: 'client-request', rpcId, method, payload: { args } }),
     })
-    if (!response.ok) throw new Error(`${methodName} transport failed: HTTP ${response.status}`)
+    if (!response.ok) throw new Error(`${method} transport failed: HTTP ${response.status}`)
     const envelope = await response.json()
     if (envelope?.type !== 'server-response' || envelope?.rpcId !== rpcId) {
-      throw new Error(`${methodName} returned an invalid RPC envelope`)
+      throw new Error(`${method} returned an invalid RPC envelope`)
     }
     if (envelope?.result?.ok !== true) {
       const code = envelope?.result?.error?.code ?? 'unknown'
-      const message = envelope?.result?.error?.message ?? `${methodName} failed`
-      throw new Error(`${methodName} failed: ${code}: ${message}`)
+      const message = envelope?.result?.error?.message ?? `${method} failed`
+      throw new Error(`${method} failed: ${code}: ${message}`)
     }
     return envelope.result.value
-  }, { endpointPath: endpoint, methodName: method, rpcArgs: args })
+  }, { endpoint, method, args })
 }
 
-async function createWorkspaceAndBlankSession(cwd) {
-  const workspaceValue = await callHarnessRpc('workspace/create', 'workspace/create', {
-    request: { path: cwd },
-  })
+async function createWorkspaceAndSession(cwd) {
+  const workspaceValue = await callHarnessRpc('workspace/create', 'workspace/create', { request: { path: cwd } })
   const workspaceId = workspaceValue?.workspace?.workspaceId
-  if (typeof workspaceId !== 'string' || !workspaceId) {
-    throw new Error('workspace.create did not return workspace.workspaceId')
-  }
+  if (typeof workspaceId !== 'string' || !workspaceId) throw new Error('workspace.create did not return workspace.workspaceId')
 
-  const sessionValue = await callHarnessRpc('session/create', 'session/create', {
-    request: { workspaceId },
-  })
+  const sessionValue = await callHarnessRpc('session/create', 'session/create', { request: { workspaceId } })
   const sessionId = sessionValue?.sessionId
-  if (typeof sessionId !== 'string' || !sessionId) {
-    throw new Error('session.create did not return sessionId')
-  }
-
+  if (typeof sessionId !== 'string' || !sessionId) throw new Error('session.create did not return sessionId')
   return { workspaceId, sessionId }
 }
 
@@ -108,15 +86,19 @@ try {
 
   phase = 'first-run'
   const continueButton = page.getByRole('button', { name: /^(Continue|继续)$/i }).first()
-  if (await continueButton.count() > 0 && await continueButton.isVisible()) {
-    await continueButton.click()
-  }
+  if (await continueButton.count() > 0 && await continueButton.isVisible()) await continueButton.click()
 
   phase = 'create-workspace-session'
-  const created = await createWorkspaceAndBlankSession(sessionCwd)
+  const created = await createWorkspaceAndSession(sessionCwd)
   createdWorkspaceId = created.workspaceId
   createdSessionId = created.sessionId
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 })
+
+  phase = 'expand-workspace'
+  const workspaceRows = page.locator('[role="treeitem"][aria-expanded]')
+  await workspaceRows.first().waitFor({ state: 'visible', timeout: 20_000 })
+  assert.equal(await workspaceRows.count(), 1, 'isolated E2E profile must contain exactly one workspace row')
+  if (await workspaceRows.first().getAttribute('aria-expanded') !== 'true') await workspaceRows.first().click()
 
   phase = 'open-created-session'
   const sessionRows = page.locator('[role="treeitem"][aria-selected]')
@@ -127,8 +109,6 @@ try {
   phase = 'wait-session-shell'
   const expandSidebar = page.locator('[data-sidebar-right-expand]')
   await expandSidebar.waitFor({ state: 'visible', timeout: 20_000 })
-
-  phase = 'expand-sidebar'
   await expandSidebar.click()
 
   phase = 'open-android-guide-entry'
@@ -157,10 +137,10 @@ try {
   assert.ok(panelBox && panelBox.width > 180 && panelBox.height > 200, 'Android panel must occupy a usable sidebar surface')
 } catch (error) {
   await page.screenshot({ path: join(artifactDir, 'native-panel-failure.png'), fullPage: true }).catch(() => {})
-  const diagnostics = await bootDiagnostics()
+  const state = await diagnostics()
   const summary = error instanceof Error ? error.message.split('\n')[0] : String(error)
   const signals = browserSignals.slice(-3).join(' | ')
-  console.error(`[dsh-artemis-e2e] phase=${phase} error=${summary} diagnostics=${JSON.stringify(diagnostics)}${signals ? ` browser=${signals}` : ''}`)
+  console.error(`[dsh-artemis-e2e] phase=${phase} error=${summary} diagnostics=${JSON.stringify(state)}${signals ? ` browser=${signals}` : ''}`)
   throw error
 } finally {
   await browser.close()
