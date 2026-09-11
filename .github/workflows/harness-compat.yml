@@ -77,6 +77,7 @@ jobs:
           tar -tzf "$TARBALL" | grep -F 'package/cordis.patch.yml'
           tar -tzf "$TARBALL" | grep -F 'package/src/index.mjs'
           tar -tzf "$TARBALL" | grep -F 'package/lib/client.js'
+          tar -tzf "$TARBALL" | grep -F 'package/src/integration/rules-skill-plugin.mjs'
           tar -xOzf "$TARBALL" package/lib/client.js | grep -F 'window.__ModuleLoader__.load'
 
       - name: Install package into an isolated Harness web profile
@@ -88,6 +89,11 @@ jobs:
           pnpm dsh plugin --profile web add "$ARTEMIS_TARBALL"
           test -f "$DSH_HOME/profiles/web/package.json"
           node -e "const p=require(process.env.DSH_HOME+'/profiles/web/package.json'); if (!p.dependencies?.['dsh-artemis']) process.exit(1)"
+
+      - name: Resolve rules-skill package subpath from the installed profile
+        working-directory: ${{ runner.temp }}/dsh-home/profiles/web
+        run: |
+          node --input-type=module -e "const m=await import('dsh-artemis/rules-skill'); if(m.name!=='dsh-artemis-rules-skill'||JSON.stringify(m.inject)!=='[\"skills\"]') process.exit(1)"
 
       - name: Verify composed Cordis tree contains dsh-artemis
         working-directory: deepseek-harness

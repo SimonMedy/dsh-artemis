@@ -5,9 +5,13 @@
   "description": "Native ARTEMIS integration for DeepSeek Harness",
   "type": "module",
   "main": "./src/index.mjs",
+  "bin": {
+    "dsh-artemis-mcp-config": "./bin/dsh-artemis-mcp-config.mjs"
+  },
   "exports": {
     ".": "./src/index.mjs",
     "./client": "./lib/client.js",
+    "./rules-skill": "./src/integration/rules-skill-plugin.mjs",
     "./package.json": "./package.json"
   },
   "dsh": {
@@ -22,6 +26,7 @@
     }
   },
   "files": [
+    "bin/*.mjs",
     "src/**/*.mjs",
     "lib/client.js",
     "cordis.patch.yml",
@@ -36,6 +41,7 @@
   },
   "scripts": {
     "check": "node scripts/check-repo.mjs && node --test test/*.test.mjs",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "mcp:config": "node ./bin/dsh-artemis-mcp-config.mjs"
   }
 }
