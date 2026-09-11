@@ -25,6 +25,7 @@ page.on('console', (message) => {
 let phase = 'bootstrap'
 let createdWorkspaceId = null
 let createdSessionId = null
+
 async function diagnostics() {
   return page.evaluate(({ workspaceId, sessionId }) => {
     const entries = Array.isArray(window.__DSH_BOOT__?.entries) ? window.__DSH_BOOT__.entries : []
@@ -48,6 +49,7 @@ async function diagnostics() {
   }, { workspaceId: createdWorkspaceId, sessionId: createdSessionId })
     .catch(() => ({ diagnosticsFailed: true, createdWorkspaceId, createdSessionId }))
 }
+
 async function callHarnessRpc(endpoint, method, args) {
   return page.evaluate(async ({ endpoint, method, args }) => {
     const rpcId = crypto.randomUUID()
@@ -70,15 +72,40 @@ async function callHarnessRpc(endpoint, method, args) {
     return envelope.result.value
   }, { endpoint, method, args })
 }
+
 async function createWorkspaceAndSession(cwd) {
   const workspaceValue = await callHarnessRpc('workspace/create', 'workspace/create', { request: { path: cwd } })
   const workspaceId = workspaceValue?.workspace?.workspaceId
   if (typeof workspaceId !== 'string' || !workspaceId) throw new Error('workspace.create did not return workspace.workspaceId')
+
   const sessionValue = await callHarnessRpc('session/create', 'session/create', { request: { workspaceId } })
   const sessionId = sessionValue?.sessionId
   if (typeof sessionId !== 'string' || !sessionId) throw new Error('session.create did not return sessionId')
   return { workspaceId, sessionId }
 }
+
+async function engageSession(sessionId) {
+  const value = await callHarnessRpc('session/prompt', 'session/prompt', {
+    request: {
+      requestId: crypto.randomUUID(),
+      sessionId,
+      mode: 'queue',
+      content: [{ type: 'text', text: 'Open the deterministic browser test session.' }],
+      clientTimeZone: 'UTC',
+    },
+  })
+  assert.equal(value?.accepted, true, 'Harness must accept the deterministic local-provider prompt')
+
+  const deadline = Date.now() + 20_000
+  while (Date.now() < deadline) {
+    const list = await callHarnessRpc('session/list', 'session/list', { request: {} })
+    const item = Array.isArray(list?.items) ? list.items.find((entry) => entry?.sessionId === sessionId) : null
+    if (item?.blank === false) return
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  throw new Error('Harness session did not become non-blank after the deterministic prompt')
+}
+
 async function completeHarnessOnboarding({ waitForNotice = false } = {}) {
   const notice = page.getByRole('dialog', { name: 'Internal Testing Notice' }).first()
   if (waitForNotice) {
@@ -89,6 +116,7 @@ async function completeHarnessOnboarding({ waitForNotice = false } = {}) {
     await continueButton.click()
     await notice.waitFor({ state: 'hidden', timeout: 10_000 })
   }
+
   const credentialDialog = page.getByRole('dialog', { name: 'Add an API key to get started' }).first()
   await credentialDialog.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {})
   if (await credentialDialog.count() > 0 && await credentialDialog.isVisible()) {
@@ -97,6 +125,7 @@ async function completeHarnessOnboarding({ waitForNotice = false } = {}) {
     await credentialDialog.waitFor({ state: 'hidden', timeout: 10_000 })
   }
 }
+
 try {
   phase = 'authenticate'
   await page.goto(authenticatedUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 })
@@ -104,24 +133,31 @@ try {
 
   phase = 'onboarding-before-workspace'
   await completeHarnessOnboarding({ waitForNotice: true })
+
   phase = 'create-workspace-session'
   const created = await createWorkspaceAndSession(sessionCwd)
   createdWorkspaceId = created.workspaceId
   createdSessionId = created.sessionId
+
+  phase = 'engage-session'
+  await engageSession(createdSessionId)
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 })
 
   phase = 'onboarding-after-reload'
   await completeHarnessOnboarding()
+
   phase = 'expand-workspace'
   const workspaceRows = page.locator('[role="treeitem"][aria-expanded]')
   await workspaceRows.first().waitFor({ state: 'visible', timeout: 20_000 })
   assert.equal(await workspaceRows.count(), 1, 'isolated E2E profile must contain exactly one workspace row')
   if (await workspaceRows.first().getAttribute('aria-expanded') !== 'true') await workspaceRows.first().click()
+
   phase = 'open-created-session'
   const sessionRows = page.locator('[role="treeitem"][aria-selected]')
   await sessionRows.first().waitFor({ state: 'visible', timeout: 20_000 })
   assert.equal(await sessionRows.count(), 1, 'isolated E2E profile must contain exactly one session row')
   await sessionRows.first().click()
+
   phase = 'wait-session-shell'
   const expandSidebar = page.locator('[data-sidebar-right-expand]')
   await expandSidebar.waitFor({ state: 'visible', timeout: 20_000 })
@@ -131,19 +167,23 @@ try {
   const androidGuideEntry = page.locator('[data-sidebar-right-guide-entry="android"]')
   await androidGuideEntry.waitFor({ state: 'visible', timeout: 20_000 })
   await androidGuideEntry.click()
+
   phase = 'wait-panel'
   const panel = page.locator('[data-dsh-artemis-panel]')
   await panel.waitFor({ state: 'visible', timeout: 15_000 })
+
   phase = 'assert-ready-state'
   await panel.getByText('ARTEMIS Ready', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 })
   await panel.getByText('Pixel_9', { exact: true }).waitFor({ state: 'visible' })
   await panel.getByText('emulator-5554', { exact: true }).waitFor({ state: 'visible' })
   await panel.getByText('Connected', { exact: true }).waitFor({ state: 'visible' })
+
   phase = 'refresh'
   const refresh = panel.getByRole('button', { name: 'Refresh Android status' })
   assert.equal(await refresh.count(), 1)
   await refresh.click()
   await panel.getByText('ARTEMIS Ready', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 })
+
   phase = 'layout'
   const panelBox = await panel.boundingBox()
   assert.ok(panelBox && panelBox.width > 180 && panelBox.height > 200, 'Android panel must occupy a usable sidebar surface')

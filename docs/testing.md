@@ -16,7 +16,7 @@ Use fixtures rather than requiring ARTEMIS or ADB for these tests.
 
 ## Layer 3 — fake ARTEMIS integration
 
-Run against a small local HTTP server matching only routes verified from ARTEMIS source. This checks request paths, status handling, timeout/error behavior and later MJPEG handling without requiring Python, ADB, a model provider or an emulator.
+Run against a small local HTTP server matching only routes verified from ARTEMIS source. This checks request paths, status handling, timeout/error behavior and verified multipart PNG frame handling without requiring Python, ADB, a model provider or an emulator.
 
 The fake server is the default adapter integration target.
 
@@ -36,17 +36,24 @@ We do not vendor or submodule Harness into `dsh-artemis`.
 
 ## Layer 5 — real Harness browser E2E
 
-The same compatibility job starts a deterministic fake ARTEMIS on `127.0.0.1:8000`, boots the **real built `dsh web`** with the packaged plugin installed, and uses Harness' Playwright runtime with Chromium.
+The same compatibility job starts two deterministic loopback fixtures before booting the **real built `dsh web`** with the packaged plugin installed:
 
-The test consumes the actual per-process Harness authentication URL (without printing or uploading its token), follows the normal token→cookie redirect, opens Android through the shipped right-sidebar guide selector, then verifies:
+- fake ARTEMIS on `127.0.0.1:8000` for the Android/device boundary;
+- fake DeepSeek on `127.0.0.1:8001` for one deterministic provider response.
 
-- the plugin's browser bundle was loaded by the real Harness module table;
+Harness is started with `DEEPSEEK_BASE_URL` pointed at the loopback fake and a dummy `DEEPSEEK_API_KEY`. No external model endpoint, real credential or model billing is involved.
+
+The browser test consumes the actual per-process Harness authentication URL without printing or uploading its token, follows the normal first-run onboarding, creates a real Workspace and Session through the public Harness RPC transport, then submits one short prompt through `session.prompt`. That prompt exists only to make the Session non-blank using the same public lifecycle as production: pinned Harness intentionally hides Session header chrome (and therefore the right-sidebar expand button) while a Session is still blank. The local fake provider emits a minimal valid SSE completion and no tool call.
+
+After `session.list` reports that exact Session as non-blank, the test reloads, opens the Session through the native Workspace browser, opens Android through the shipped right-sidebar guide entry, then verifies:
+
+- the plugin browser bundle was loaded by the real Harness module table;
 - the native Android page opens through the right-sidebar registry/slot path;
 - ARTEMIS Ready, model, serial and stream state render from the fake Host boundary;
 - the native Refresh button performs another successful status read;
 - the panel occupies a usable sidebar surface.
 
-A screenshot is retained for three days only on browser-test failure. The raw Harness log containing the launch token is never uploaded.
+A screenshot is retained for three days only on browser-test failure. The raw Harness log containing the launch token is never uploaded. Local fake-provider credentials are fixed test data and grant no external access.
 
 ## Layer 6 — real ARTEMIS + Android smoke
 

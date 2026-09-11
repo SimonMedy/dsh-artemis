@@ -8,7 +8,7 @@ on:
       - "src/**"
       - "lib/client.js"
       - "test/e2e/**"
-      - "test/fixtures/fake-artemis.mjs"
+      - "test/fixtures/**"
       - "docs/upstreams.md"
       - ".github/workflows/harness-compat.yml"
   workflow_dispatch:
@@ -103,21 +103,29 @@ jobs:
         working-directory: deepseek-harness/apps/web
         run: pnpm exec playwright install chromium
 
-      - name: Start fake ARTEMIS
+      - name: Start deterministic local test services
         run: |
           node dsh-artemis/test/fixtures/fake-artemis.mjs > "$RUNNER_TEMP/fake-artemis.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/fake-artemis.pid"
+          node dsh-artemis/test/fixtures/fake-deepseek.mjs > "$RUNNER_TEMP/fake-deepseek.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/fake-deepseek.pid"
           for _ in $(seq 1 40); do
-            if curl --fail --silent http://127.0.0.1:8000/api/status >/dev/null; then exit 0; fi
+            ARTEMIS_READY=0
+            DEEPSEEK_READY=0
+            curl --fail --silent http://127.0.0.1:8000/api/status >/dev/null && ARTEMIS_READY=1 || true
+            curl --fail --silent http://127.0.0.1:8001/health >/dev/null && DEEPSEEK_READY=1 || true
+            if [ "$ARTEMIS_READY" -eq 1 ] && [ "$DEEPSEEK_READY" -eq 1 ]; then exit 0; fi
             sleep 0.25
           done
-          echo "Fake ARTEMIS failed to start" >&2
+          echo "Local test services failed to start" >&2
           exit 1
 
       - name: Start authenticated Harness Web
         working-directory: deepseek-harness
         env:
           DSH_HOME: ${{ runner.temp }}/dsh-home
+          DEEPSEEK_BASE_URL: http://127.0.0.1:8001
+          DEEPSEEK_API_KEY: dsh-artemis-e2e-dummy
         run: |
           redact_log() {
             sed -E 's/(token=)[^[:space:]]+/\1<redacted>/g' "$RUNNER_TEMP/dsh-web.log" | tail -n 80 | tr '\n' ' ' | sed -E 's/::/%3A%3A/g; s/%/%25/g; s/\r/%0D/g; s/\n/%0A/g'
@@ -168,3 +176,4 @@ jobs:
         run: |
           if [ -f "$RUNNER_TEMP/dsh-web.pid" ]; then kill "$(cat "$RUNNER_TEMP/dsh-web.pid")" 2>/dev/null || true; fi
           if [ -f "$RUNNER_TEMP/fake-artemis.pid" ]; then kill "$(cat "$RUNNER_TEMP/fake-artemis.pid")" 2>/dev/null || true; fi
+          if [ -f "$RUNNER_TEMP/fake-deepseek.pid" ]; then kill "$(cat "$RUNNER_TEMP/fake-deepseek.pid")" 2>/dev/null || true; fi
