@@ -15,36 +15,60 @@ await mkdir(artifactDir, { recursive: true })
 const browser = await chromium.launch({ headless: true })
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
 
+const browserSignals = []
+page.on('pageerror', (error) => browserSignals.push(`pageerror:${error.message}`))
+page.on('console', (message) => {
+  if (message.type() === 'error') browserSignals.push(`console:${message.text()}`)
+})
+
+let phase = 'bootstrap'
+
 try {
+  phase = 'authenticate'
   await page.goto(authenticatedUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 })
   await page.waitForURL((url) => !url.searchParams.has('token'), { timeout: 15_000 })
 
+  phase = 'first-run'
   const continueButton = page.getByRole('button', { name: /^(Continue|继续)$/i }).first()
   if (await continueButton.count() > 0 && await continueButton.isVisible()) {
     await continueButton.click()
   }
 
+  phase = 'expand-sidebar'
+  const expandSidebar = page.locator('[data-sidebar-right-expand]')
+  if (await expandSidebar.count() > 0 && await expandSidebar.isVisible()) {
+    await expandSidebar.click()
+  }
+
+  phase = 'open-android-guide-entry'
   const androidGuideEntry = page.locator('[data-sidebar-right-guide-entry="android"]')
   await androidGuideEntry.waitFor({ state: 'visible', timeout: 20_000 })
   await androidGuideEntry.click()
 
+  phase = 'wait-panel'
   const panel = page.locator('[data-dsh-artemis-panel]')
   await panel.waitFor({ state: 'visible', timeout: 15_000 })
 
+  phase = 'assert-ready-state'
   await panel.getByText('ARTEMIS Ready', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 })
   await panel.getByText('Pixel_9', { exact: true }).waitFor({ state: 'visible' })
   await panel.getByText('emulator-5554', { exact: true }).waitFor({ state: 'visible' })
   await panel.getByText('Connected', { exact: true }).waitFor({ state: 'visible' })
 
+  phase = 'refresh'
   const refresh = panel.getByRole('button', { name: 'Refresh Android status' })
   assert.equal(await refresh.count(), 1)
   await refresh.click()
   await panel.getByText('ARTEMIS Ready', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 })
 
+  phase = 'layout'
   const panelBox = await panel.boundingBox()
   assert.ok(panelBox && panelBox.width > 180 && panelBox.height > 200, 'Android panel must occupy a usable sidebar surface')
 } catch (error) {
   await page.screenshot({ path: join(artifactDir, 'native-panel-failure.png'), fullPage: true }).catch(() => {})
+  const summary = error instanceof Error ? error.message.split('\n')[0] : String(error)
+  const signals = browserSignals.slice(-3).join(' | ')
+  console.error(`[dsh-artemis-e2e] phase=${phase} error=${summary}${signals ? ` browser=${signals}` : ''}`)
   throw error
 } finally {
   await browser.close()
