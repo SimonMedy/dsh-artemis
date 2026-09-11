@@ -33,7 +33,7 @@ function device(value, index) {
 }
 
 export function parseOverview(value) {
-  const input = record(value, 'overvieg')
+  const input = record(value, 'overview')
   if (input.version !== DSH_ARTEMIS_PROTOCOL_VERSION) throw new Error('Unsupported dsh-artemis protocol version')
 
   const artemis = record(input.artemis, 'artemis')
@@ -42,7 +42,7 @@ export function parseOverview(value) {
   }
   const status = nullableString(artemis.status, 'artemis.status')
 
-  if (!Array.isArray(input.devices)) throw new Error ('devices must be an array')
+  if (!Array.isArray(input.devices)) throw new Error('devices must be an array')
   const devices = Object.freeze(input.devices.map(device))
   const activeDeviceSerial = nullableString(input.activeDeviceSerial, 'activeDeviceSerial')
 
@@ -58,7 +58,20 @@ export function parseOverview(value) {
   })
 }
 
-export function selectActiveDevice(overview"’°¢–b†÷fW'f–Wræ7F—fTFWf–6U6W&–Â’°¢6öç7B7F—fRÒ÷fW'f–WræFWf–6W2æf–æB‚†VçG'’’ÓâVçG'’ç6W&–ÂÓÓÒ÷fW'f–Wræ7F—fTFWf–6U6W&–Â¢–b†7F—fR’&WGW&â7F—fP¢Ð¢&WGW&â÷fW'f–WræFWf–6W5³ÒóòçVÆÀ§Ð ¦W‡÷'BgVæ7F–öâFW&—fUæVÅ7FFR†÷fW'f–Wr’°¢–b†÷fW'f–Wræ'FVÖ—2ç7FFRÓÓÒvöffÆ–æRr’°¢&WGW&âö&¦V7Bæg&VW¦R‡²F÷C¢v–FÆRrÂ'FVÖ—4Æ&VÃ¢t%DTÔ•2öffÆ–æRrÂFWf–6TÆ&VÃ¢tæòFWf–6RrÒ¢Ð ¢6öç7B7F—fRÒ6VÆV7D7F—fTFWf–6R†÷fW'f–Wr)
+export function selectActiveDevice(overview) {
+  if (overview.activeDeviceSerial) {
+    const active = overview.devices.find((entry) => entry.serial === overview.activeDeviceSerial)
+    if (active) return active
+  }
+  return overview.devices[0] ?? null
+}
+
+export function derivePanelState(overview) {
+  if (overview.artemis.state === 'offline') {
+    return Object.freeze({ dot: 'idle', artemisLabel: 'ARTEMIS Offline', deviceLabel: 'No device' })
+  }
+
+  const active = selectActiveDevice(overview)
   if (!active) {
     return Object.freeze({ dot: 'warning', artemisLabel: 'ARTEMIS Ready', deviceLabel: 'No Android device' })
   }
@@ -74,7 +87,7 @@ export function overviewEndpoint(locationLike = globalThis.location) {
 }
 
 export async function fetchOverview({ fetchImpl = globalThis.fetch, locationLike = globalThis.location } = {}) {
-  if (typeof fetchImpl !== 'function') throw new Eror('Browser fetch is unavailable')
+  if (typeof fetchImpl !== 'function') throw new Error('Browser fetch is unavailable')
   const endpoint = overviewEndpoint(locationLike)
   if (!endpoint) throw new Error('The Android panel currently requires the Harness Web profile')
 

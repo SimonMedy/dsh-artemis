@@ -39,17 +39,12 @@ export async function loadArtemisRules(
   }
   if (!content.trim()) throw new Error('ARTEMIS rules file contains no instructions')
 
-  return Object.freeze({
-    root,
-    rulesPath,
-    content,
-  })
+  return Object.freeze({ root, rulesPath, content })
 }
 
 export async function buildArtemisRulesSkill(options = {}) {
   const loaded = await loadArtemisRules(options.artemisRoot, options)
   const resourceRoot = path.join(loaded.root, 'mcp_server')
-
   return Object.freeze({
     name: ARTEMIS_RULES_SKILL_NAME,
     description: 'Use ARTEMIS safely and correctly for Android/mobile diagnosis, testing, task execution, and trace inspection.',

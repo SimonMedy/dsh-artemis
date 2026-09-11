@@ -6,50 +6,47 @@ Fast checks run on every PR: repository invariants, JSON validity and lightweigh
 
 ## Layer 2 — unit/contract tests
 
-Once implementation starts:
-
-- shared DTO parsing/validation;
+- shared protocol parsing/validation;
 - ARTEMIS response normalization;
-- state-machine behavior for Offline / Booting / Ready / Busy;
+- Offline / Ready / Busy / No-device state derivation;
 - error and reconnect behavior;
-- host command mapping.
+- package/browser bundle shape.
 
 Use fixtures rather than requiring ARTEMIS or ADB for these tests.
 
 ## Layer 3 — fake ARTEMIS integration
 
-Run against a small local HTTP server matching only routes we have verified from ARTEMIS source. This checks request paths, status handling, timeout/error behavior and later MJPEG handling without requiring Python, ADB, a model provider or an emulator.
+Run against a small local HTTP server matching only routes verified from ARTEMIS source. This checks request paths, status handling, timeout/error behavior and later MJPEG handling without requiring Python, ADB, a model provider or an emulator.
 
-The fake server is the default adapter integration test target.
+The fake server is the default adapter integration target.
 
 ## Layer 4 — pinned Harness compatibility
 
-`.github/workflows/harness-compat.yml` checks out DeepSeek Harness at the exact SHA in `docs/upstreams.md`, installs its dependencies with the upstream pnpm version, builds the Host libraries, and runs the real source CLI.
+`.github/workflows/harness-compat.yml` checks out DeepSeek Harness at the exact SHA in `docs/upstreams.md`, uses the upstream pnpm version and runs the real source CLI.
 
-The job then:
+The job:
 
-1. packs `dsh-artemis` into a tarball so `files`/exports are tested rather than relying on a workspace symlink;
-2. installs that tarball through `dsh plugin --profile web add ...` into an isolated `DSH_HOME`;
-3. verifies that the profile dependency is materialized;
-4. runs `dsh web --dump-config` and requires the `dsh-artemis` Cordis row to exist.
-
-This is the package/composition compatibility gate. It intentionally does not claim browser rendering coverage; that belongs to Playwright.
+1. installs and builds the pinned Harness checkout;
+2. packs `dsh-artemis` into a tarball so publication `files`/exports are tested rather than workspace symlinks;
+3. verifies the Harness lazy-CJS browser bundle is present in that tarball;
+4. installs it through `dsh plugin --profile web add ...` into an isolated `DSH_HOME`;
+5. runs `dsh web --dump-config` and requires the `dsh-artemis` Cordis row.
 
 We do not vendor or submodule Harness into `dsh-artemis`.
 
-## Layer 5 — browser E2E
+## Layer 5 — real Harness browser E2E
 
-Use Playwright against a real pinned Harness web instance with `dsh-artemis` enabled and fake ARTEMIS behind it. Cover:
+The same compatibility job starts a deterministic fake ARTEMIS on `127.0.0.1:8000`, boots the **real built `dsh web`** with the packaged plugin installed, and uses Harness' Playwright runtime with Chromium.
 
-- Android tab registration/opening;
-- native sidebar layout and resize;
-- Offline → Ready and error transitions;
-- refresh/reconnect;
-- screenshot/preview rendering;
-- controls when introduced;
-- no console/runtime errors.
+The test consumes the actual per-process Harness authentication URL (without printing or uploading its token), follows the normal token→cookie redirect, opens Android through the shipped right-sidebar guide selector, then verifies:
 
-Publish Playwright report, screenshots and traces on failure with short artifact retention.
+- the plugin's browser bundle was loaded by the real Harness module table;
+- the native Android page opens through the right-sidebar registry/slot path;
+- ARTEMIS Ready, model, serial and stream state render from the fake Host boundary;
+- the native Refresh button performs another successful status read;
+- the panel occupies a usable sidebar surface.
+
+A screenshot is retained for three days only on browser-test failure. The raw Harness log containing the launch token is never uploaded.
 
 ## Layer 6 — real ARTEMIS + Android smoke
 

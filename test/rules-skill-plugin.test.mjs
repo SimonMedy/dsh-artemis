@@ -3,12 +3,7 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
-import {
-  apply,
-  inject,
-  name,
-  normalizeRulesSkillConfig,
-} from '../src/integration/rules-skill-plugin.mjs'
+import { apply, inject, name, normalizeRulesSkillConfig } from '../src/integration/rules-skill-plugin.mjs'
 
 async function fakeArtemisRoot() {
   const root = await mkdtemp(path.join(os.tmpdir(), 'dsh-artemis-rules-plugin-'))
@@ -38,14 +33,8 @@ test('plugin effect registers upstream rules through Harness lifecycle', async (
   const dispose = () => {}
   const ctx = {
     effect(factory, label) { effects.push({ factory, label }) },
-    skills: {
-      register(skill) {
-        registrations.push(skill)
-        return dispose
-      },
-    },
+    skills: { register(skill) { registrations.push(skill); return dispose } },
   }
-
   apply(ctx, { artemisRoot: root, maxRulesBytes: 64 * 1024 })
   assert.equal(effects.length, 1)
   assert.match(effects[0].label, /rules skill/)
