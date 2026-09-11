@@ -29,6 +29,10 @@ let createdSessionId = null
 async function diagnostics() {
   return page.evaluate(({ workspaceId, sessionId }) => {
     const entries = Array.isArray(window.__DSH_BOOT__?.entries) ? window.__DSH_BOOT__.entries : []
+    const dialogs = [...document.querySelectorAll('[role="dialog"]')].map((element) => ({
+      label: element.getAttribute('aria-label'),
+      text: (element.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 240),
+    }))
     return {
       createdWorkspaceId: workspaceId,
       createdSessionId: sessionId,
@@ -40,6 +44,7 @@ async function diagnostics() {
       expandPresent: Boolean(document.querySelector('[data-sidebar-right-expand]')),
       workspaceRows: document.querySelectorAll('[role="treeitem"][aria-expanded]').length,
       sessionRows: document.querySelectorAll('[role="treeitem"][aria-selected]').length,
+      dialogs,
     }
   }, { workspaceId: createdWorkspaceId, sessionId: createdSessionId })
     .catch(() => ({ diagnosticsFailed: true, createdWorkspaceId, createdSessionId }))
@@ -79,6 +84,15 @@ async function createWorkspaceAndSession(cwd) {
   return { workspaceId, sessionId }
 }
 
+async function dismissSingleTransientModal() {
+  const dialogs = page.getByRole('dialog')
+  const count = await dialogs.count()
+  if (count === 0) return
+  assert.equal(count, 1, 'isolated E2E profile must not have multiple blocking dialogs')
+  await page.keyboard.press('Escape')
+  await dialogs.first().waitFor({ state: 'hidden', timeout: 10_000 })
+}
+
 try {
   phase = 'authenticate'
   await page.goto(authenticatedUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 })
@@ -100,11 +114,14 @@ try {
   assert.equal(await workspaceRows.count(), 1, 'isolated E2E profile must contain exactly one workspace row')
   if (await workspaceRows.first().getAttribute('aria-expanded') !== 'true') await workspaceRows.first().click()
 
+  phase = 'dismiss-transient-modal'
+  await dismissSingleTransientModal()
+
   phase = 'open-created-session'
   const sessionRows = page.locator('[role="treeitem"][aria-selected]')
   await sessionRows.first().waitFor({ state: 'visible', timeout: 20_000 })
   assert.equal(await sessionRows.count(), 1, 'isolated E2E profile must contain exactly one session row')
-  await sessionRows.first().click()
+  if (await sessionRows.first().getAttribute('aria-selected') !== 'true') await sessionRows.first().click()
 
   phase = 'wait-session-shell'
   const expandSidebar = page.locator('[data-sidebar-right-expand]')
