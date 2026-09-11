@@ -23,6 +23,28 @@ page.on('console', (message) => {
 
 let phase = 'bootstrap'
 
+async function bootDiagnostics() {
+  return page.evaluate(() => {
+    const boot = window.__DSH_BOOT__
+    const entries = boot && Array.isArray(boot.entries)
+      ? boot.entries.map((entry) => ({
+          id: entry && typeof entry.id === 'string' ? entry.id : null,
+          inject: Array.isArray(entry?.inject) ? entry.inject : [],
+          external: Array.isArray(entry?.external) ? entry.external : [],
+          url: typeof entry?.url === 'string' ? entry.url.replace(/([?&]token=)[^&]+/g, '$1<redacted>') : null,
+        }))
+      : []
+    return {
+      bootPresent: Boolean(boot),
+      entryIds: entries.map((entry) => entry.id),
+      artemisEntry: entries.find((entry) => entry.id === 'dsh-artemis') ?? null,
+      loaderPresent: Boolean(window.__ModuleLoader__),
+      guidePresent: Boolean(document.querySelector('[data-sidebar-right-guide]')),
+      expandPresent: Boolean(document.querySelector('[data-sidebar-right-expand]')),
+    }
+  }).catch(() => ({ diagnosticsFailed: true }))
+}
+
 try {
   phase = 'authenticate'
   await page.goto(authenticatedUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 })
@@ -66,9 +88,10 @@ try {
   assert.ok(panelBox && panelBox.width > 180 && panelBox.height > 200, 'Android panel must occupy a usable sidebar surface')
 } catch (error) {
   await page.screenshot({ path: join(artifactDir, 'native-panel-failure.png'), fullPage: true }).catch(() => {})
+  const diagnostics = await bootDiagnostics()
   const summary = error instanceof Error ? error.message.split('\n')[0] : String(error)
   const signals = browserSignals.slice(-3).join(' | ')
-  console.error(`[dsh-artemis-e2e] phase=${phase} error=${summary}${signals ? ` browser=${signals}` : ''}`)
+  console.error(`[dsh-artemis-e2e] phase=${phase} error=${summary} diagnostics=${JSON.stringify(diagnostics)}${signals ? ` browser=${signals}` : ''}`)
   throw error
 } finally {
   await browser.close()
