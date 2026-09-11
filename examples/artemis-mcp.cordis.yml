@@ -1,0 +1,11 @@
+# Reference-only Harness Cordis row for an existing local ARTEMIS checkout.
+# Replace the cwd value with the absolute ARTEMIS root on the current machine.
+- id: mcp-artemis
+  name: '@deepseek-ai/dsh-mcp-client'
+  config:
+    serverName: artemis
+    transport: stdio
+    command: uv
+    args: ['run', 'artemis', 'mcp']
+    cwd: '/absolute/path/to/artemis'
+    failOnStartupError: false
