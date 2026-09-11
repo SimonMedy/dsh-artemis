@@ -6,6 +6,7 @@ on:
       - "package.json"
       - "cordis.patch.yml"
       - "src/**"
+      - "lib/client.js"
       - "docs/upstreams.md"
       - ".github/workflows/harness-compat.yml"
   workflow_dispatch:
@@ -63,7 +64,8 @@ jobs:
           echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
           tar -tzf "$TARBALL" | grep -F 'package/cordis.patch.yml'
           tar -tzf "$TARBALL" | grep -F 'package/src/index.mjs'
-          tar -tzf "$TARBALL" | grep -F 'package/src/client/index.mjs'
+          tar -tzf "$TARBALL" | grep -F 'package/lib/client.js'
+          tar -xOzf "$TARBALL" package/lib/client.js | grep -F 'window.__ModuleLoader__.load'
 
       - name: Install package into an isolated Harness web profile
         working-directory: deepseek-harness

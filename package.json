@@ -7,7 +7,7 @@
   "main": "./src/index.mjs",
   "exports": {
     ".": "./src/index.mjs",
-    "./client": "./src/client/index.mjs",
+    "./client": "./lib/client.js",
     "./package.json": "./package.json"
   },
   "dsh": {
@@ -19,11 +19,15 @@
       "inject": [
         "@deepseek-ai/dsh-client-ui-primitives",
         "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ],
+      "external": [
+        "@deepseek-ai/dsh-client-ui-primitives"
       ]
     }
   },
   "files": [
     "src/**/*.mjs",
+    "lib/client.js",
     "cordis.patch.yml",
     "README.md",
     "SECURITY.md"

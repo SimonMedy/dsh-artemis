@@ -21,13 +21,15 @@ We do not need ARTEMIS checked out for most tests. A fake server covers its HTTP
 
 ## Package shape
 
-The Phase 0 loading proof uses one dual-face ESM package:
+`dsh-artemis` is one dual-face package:
 
 - package root (`.`): Cordis Host plugin;
-- `./client`: browser plugin advertised through `dsh.client`;
+- `./client`: the Harness browser module-table artifact;
 - `cordis.patch.yml`: installable Bundle layer that inserts the Host plugin row.
 
-The package intentionally exports plain ESM source while there is no JSX/TypeScript build requirement. This keeps the proof free of an unnecessary build dependency. When the real React panel is introduced, we will adopt the build pipeline required by the verified Harness client contract and commit its lockfile.
+Harness' browser module system is not ESM/import-map based. `./client` must be a lazy-CJS factory bundle that registers through `window.__ModuleLoader__.load({ id, factory })`. The repository therefore publishes `lib/client.js`, while modular files under `src/client/` remain the readable source/contract split used during development and tests.
+
+For this small pre-build-system MVP, `lib/client.js` is an intentional distribution artifact and is contract-tested in Node. As the browser client grows, replace this hand-maintained artifact with a pinned/reproducible tsdown build matching Harness' `clientBundle` preset semantics; do not introduce that toolchain without a lockfile and a CI reproducibility gate.
 
 ## Development sequence
 
@@ -36,7 +38,7 @@ The package intentionally exports plain ESM source while there is no JSX/TypeScr
 3. Implement shared DTOs/protocol first when a Host↔Client boundary is involved.
 4. Implement the Host adapter with fixture-driven tests.
 5. Implement the native Harness client UI.
-6. Validate against a pinned Harness checkout in GitHub Actions.
+6. Validate the packaged Host and browser client artifacts against pinned Harness expectations.
 7. Run Playwright E2E with fake ARTEMIS for UI flows.
 8. Add a real Android/ARTEMIS smoke workflow only when the feature needs it.
 
@@ -48,8 +50,8 @@ Current Harness documentation defines out-of-tree installation through:
 dsh plugin --profile <name> add <package-or-git-spec>
 ```
 
-Profiles install external package dependencies and compose plugin/bundle patch layers. `dsh-artemis` now models that contract directly through `dsh.bundle.patch` plus `dsh.client.platform = web`; the pinned-Harness compatibility job remains the authority on whether this exact out-of-tree package shape loads successfully.
+Profiles install external package dependencies and compose plugin/bundle patch layers. `dsh-artemis` models that contract directly through `dsh.bundle.patch` plus `dsh.client.platform = web`.
 
 ## Local runtime testing
 
-Once the package shape is proven against the pinned Harness checkout, local/manual reproduction will be documented as an optional developer path, not as the primary validation mechanism. CI remains the source of reproducible build/test results.
+Once browser E2E is encoded in CI, local/manual reproduction remains an optional developer path, not the primary validation mechanism. CI is the source of reproducible build/test results.
