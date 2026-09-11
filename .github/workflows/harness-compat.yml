@@ -19,7 +19,6 @@ permissions:
 env:
   HARNESS_SHA: c291e7961a515f6d7af9304e7fd1d257929aef26
   PNPM_VERSION: 11.7.0
-
 jobs:
   install-compose-and-browser-e2e:
     runs-on: ubuntu-latest
@@ -36,7 +35,6 @@ jobs:
           repository: deepseek-ai/deepseek-harness
           ref: ${{ env.HARNESS_SHA }}
           path: deepseek-harness
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -47,7 +45,6 @@ jobs:
           corepack enable
           corepack prepare "pnpm@${PNPM_VERSION}" --activate
           pnpm --version
-
       - name: Install and build pinned Harness
         working-directory: deepseek-harness
         run: |
@@ -64,7 +61,6 @@ jobs:
           run_quiet harness-install pnpm install --frozen-lockfile
           run_quiet harness-build pnpm run build
           pnpm dsh --version
-
       - name: Pack dsh-artemis as a distribution artifact
         id: pack
         working-directory: dsh-artemis
@@ -79,7 +75,6 @@ jobs:
           tar -tzf "$TARBALL" | grep -F 'package/lib/client.js'
           tar -tzf "$TARBALL" | grep -F 'package/src/integration/rules-skill-plugin.mjs'
           tar -xOzf "$TARBALL" package/lib/client.js | grep -F 'window.__ModuleLoader__.load'
-
       - name: Install package into an isolated Harness web profile
         working-directory: deepseek-harness
         env:
@@ -125,7 +120,7 @@ jobs:
           DSH_HOME: ${{ runner.temp }}/dsh-home
         run: |
           redact_log() {
-            sed -E 's/(token=)[^[:space:]]+/\1<redacted>/g' "$RUNNER_TEMP/dsh-web.log" | tail -n 12 | tr '\n' ' ' | sed -E 's/::/%3A%3A/g; s/%/%25/g; s/\r/%0D/g; s/\n/%0A/g'
+            sed -E 's/(token=)[^[:space:]]+/\1<redacted>/g' "$RUNNER_TEMP/dsh-web.log" | tail -n 80 | tr '\n' ' ' | sed -E 's/::/%3A%3A/g; s/%/%25/g; s/\r/%0D/g; s/\n/%0A/g'
           }
           fail_start() {
             DETAIL=$(redact_log)
