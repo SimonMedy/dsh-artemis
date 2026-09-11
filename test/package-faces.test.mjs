@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import * as hostPlugin from '../src/index.mjs'
-import * as clientPlugin from '../src/client/index.mjs'
+import { androidTabDefinition } from '../src/client/definition.mjs'
+import { inject as clientInject, registerAndroidClient } from '../src/client/register.mjs'
 
 test('package manifest advertises one bundle and one web client face', async () => {
   const pkg = JSON.parse(await readFile('package.json', 'utf8'))
@@ -10,7 +11,10 @@ test('package manifest advertises one bundle and one web client face', async () 
   assert.equal(pkg.exports['./client'], './src/client/index.mjs')
   assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml')
   assert.equal(pkg.dsh.client.platform, 'web')
-  assert.deepEqual(pkg.dsh.client.inject, ['@deepseek-ai/dsh-client-ui-sidebar-right'])
+  assert.deepEqual(pkg.dsh.client.inject, [
+    '@deepseek-ai/dsh-client-ui-primitives',
+    '@deepseek-ai/dsh-client-ui-sidebar-right',
+  ])
   assert.equal(pkg.peerDependencies['@deepseek-ai/cordis'], '^4.0.2')
 })
 
@@ -40,8 +44,8 @@ test('Host face declares only the services it consumes and effect-owns registrat
   assert.equal(routes.length, 1)
 })
 
-test('Client face registers the android type and keyed native sidebar seat', () => {
-  assert.deepEqual(clientPlugin.inject, ['slots', 'sidebarRightTabs'])
+test('Client registration uses Android page type, guide entry and keyed native sidebar seat', () => {
+  assert.deepEqual(clientInject, ['slots', 'sidebarRightTabs'])
 
   const effects = []
   const definitions = []
@@ -49,6 +53,7 @@ test('Client face registers the android type and keyed native sidebar seat', () 
   const typeDispose = () => {}
   const seatDispose = () => {}
   const injectDispose = () => {}
+  const AndroidPanel = () => null
   const ctx = {
     effect(factory, label) { effects.push({ factory, label }) },
     sidebarRightTabs: {
@@ -67,22 +72,23 @@ test('Client face registers the android type and keyed native sidebar seat', () 
     },
   }
 
-  clientPlugin.apply(ctx)
+  registerAndroidClient(ctx, AndroidPanel)
   assert.equal(effects.length, 2)
   assert.equal(effects[0].factory(), typeDispose)
   assert.equal(effects[1].factory(), injectDispose)
 
-  assert.deepEqual(definitions[0], {
-    id: 'dsh-artemis:android',
-    kind: 'android',
-    priority: 'extension',
-    title: definitions[0].title,
-  })
+  const expected = androidTabDefinition()
+  assert.equal(definitions[0].id, expected.id)
+  assert.equal(definitions[0].kind, 'android')
+  assert.equal(definitions[0].priority, 'extension')
   assert.equal(definitions[0].title(), 'Android')
-  assert.equal(seatRegistrations.length, 1)
+  assert.equal(definitions[0].guide.length, 1)
+  assert.equal(definitions[0].guide[0].title(), 'Android')
+  assert.match(definitions[0].guide[0].description(), /ARTEMIS/)
+
   assert.deepEqual(seatRegistrations[0].metadata, {
     name: 'sidebar.right.pane.tab',
     key: 'dsh-artemis:android',
   })
-  assert.equal(typeof seatRegistrations[0].component, 'function')
+  assert.equal(seatRegistrations[0].component, AndroidPanel)
 })

@@ -13,9 +13,10 @@ Before changing runtime behavior, read and follow:
 - [`SECURITY.md`](SECURITY.md) for trust boundaries, secrets, network/ADB safety and security-review triggers;
 - [`docs/maintainability.md`](docs/maintainability.md) for module boundaries, compatibility discipline, dependency policy and definition of done;
 - [`docs/testing.md`](docs/testing.md) for the required validation layer;
+- [`docs/ui-native-conventions.md`](docs/ui-native-conventions.md) before changing sidebar/UI behavior or styling;
 - [`docs/upstreams.md`](docs/upstreams.md) before coding against Harness or ARTEMIS.
 
-Security and maintainability are implementation requirements, not post-release cleanup tasks.
+Security, native UX consistency and maintainability are implementation requirements, not post-release cleanup tasks.
 
 ## Non-negotiable rules
 
@@ -33,6 +34,8 @@ Security and maintainability are implementation requirements, not post-release c
 12. Never leak credentials, environment secrets, raw stack traces or sensitive screen/trace data through Client RPC or logs.
 13. Do not weaken CSP/CORS/origin/security controls as an integration shortcut.
 14. New process-spawning, network-proxying, streaming, filesystem or credential-handling code requires an explicit review against `SECURITY.md`.
+15. Reuse Harness primitives and `--dsw-*` theme tokens; do not introduce a parallel component/theme system for the Android panel.
+16. Do not display guessed device metadata. UI fields require a verified adapter source.
 
 ## Upstream workflow
 
@@ -50,21 +53,20 @@ Before implementing against Harness or ARTEMIS:
 src/
   host/    # local machine / ARTEMIS adapter and Harness host bindings
   client/  # React/Harness UI adapter
-  shared/  # DTOs, RPC names, state models; no host-only imports
+  shared/  # DTOs, route/protocol constants and state models; no host-only imports
 ```
-
-No framework-specific source is added until the current Harness plugin loading/build contract is verified.
 
 ## Development quality
 
-- Prefer project-owned typed contracts at external boundaries.
+- Prefer project-owned typed/validated contracts at external boundaries.
 - Keep Cordis/Harness and ARTEMIS-specific imports inside their adapters.
 - Use argument-safe process APIs; do not interpolate device identifiers into shell command strings.
 - Bound network/process calls with timeouts and validate external response shapes.
 - Keep dependencies minimal and justify runtime additions.
 - Add deterministic regression tests for fixed bugs whenever practical.
 - Keep UI components focused on rendering/interactions; transport and normalization belong outside React components.
+- Prefer Harness-provided controls/icons/tokens to local equivalents; document any necessary exception.
 
 ## Validation
 
-Run the repository checks defined in `package.json`. GitHub Actions is the primary reproducible validation environment. Later phases should add Harness integration tests and browser E2E without requiring contributors to manually reproduce the full stack.
+Run the repository checks defined in `package.json`. GitHub Actions is the primary reproducible validation environment. Harness compatibility checks must use the pinned upstream checkout. User-visible UI requires browser E2E before the corresponding milestone is considered complete.

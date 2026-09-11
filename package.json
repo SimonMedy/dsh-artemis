@@ -17,6 +17,7 @@
     "client": {
       "platform": "web",
       "inject": [
+        "@deepseek-ai/dsh-client-ui-primitives",
         "@deepseek-ai/dsh-client-ui-sidebar-right"
       ]
     }

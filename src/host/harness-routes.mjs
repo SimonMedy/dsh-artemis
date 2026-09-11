@@ -1,7 +1,11 @@
 import { ArtemisProtocolError } from './artemis-http.mjs'
+import {
+  DSH_ARTEMIS_PROTOCOL_VERSION,
+  HOST_ROUTE_PREFIX,
+  OVERVIEW_ROUTE,
+} from '../shared/protocol.mjs'
 
-export const HOST_ROUTE_PREFIX = '/dsh-artemis/v1'
-export const OVERVIEW_ROUTE = `${HOST_ROUTE_PREFIX}/overview`
+export { HOST_ROUTE_PREFIX, OVERVIEW_ROUTE }
 
 function writeJson(res, status, value, { head = false } = {}) {
   const body = JSON.stringify(value)
@@ -46,7 +50,7 @@ export async function buildOverview(client) {
   } catch (error) {
     if (error instanceof ArtemisProtocolError && error.code === 'unavailable') {
       return Object.freeze({
-        version: 1,
+        version: DSH_ARTEMIS_PROTOCOL_VERSION,
         artemis: Object.freeze({ state: 'offline', status: null }),
         devices: Object.freeze([]),
         activeDeviceSerial: null,
@@ -68,7 +72,7 @@ export async function buildOverview(client) {
   const activeDeviceSerial = streamResult.status === 'fulfilled' ? streamResult.value.serial : null
 
   return Object.freeze({
-    version: 1,
+    version: DSH_ARTEMIS_PROTOCOL_VERSION,
     artemis: Object.freeze({ state: 'ready', status: health.status }),
     devices,
     activeDeviceSerial,
