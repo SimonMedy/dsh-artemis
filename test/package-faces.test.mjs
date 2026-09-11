@@ -5,17 +5,14 @@ import * as hostPlugin from '../src/index.mjs'
 import { androidTabDefinition } from '../src/client/definition.mjs'
 import { inject as clientInject, registerAndroidClient } from '../src/client/register.mjs'
 
-test('package manifest advertises one bundle and one web client face', async () => {
+test('package manifest advertises Host bundle and baseline-aware Web client face', async () => {
   const pkg = JSON.parse(await readFile('package.json', 'utf8'))
   assert.equal(pkg.exports['.'], './src/index.mjs')
   assert.equal(pkg.exports['./client'], './lib/client.js')
   assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml')
   assert.equal(pkg.dsh.client.platform, 'web')
-  assert.deepEqual(pkg.dsh.client.inject, [
-    '@deepseek-ai/dsh-client-ui-primitives',
-    '@deepseek-ai/dsh-client-ui-sidebar-right',
-  ])
-  assert.deepEqual(pkg.dsh.client.external, ['@deepseek-ai/dsh-client-ui-primitives'])
+  assert.deepEqual(pkg.dsh.client.inject, ['@deepseek-ai/dsh-client-ui-sidebar-right'])
+  assert.equal(pkg.dsh.client.external, undefined)
   assert.equal(pkg.peerDependencies['@deepseek-ai/cordis'], '^4.0.2')
 })
 
@@ -25,7 +22,7 @@ test('bundle patch inserts the Host plugin by package name', async () => {
   assert.match(patch, /name:\s*['"]dsh-artemis['"]/)
 })
 
-test('Host face declares only the services it consumes and effect-owns registration', () => {
+test('Host face declares only consumed services and effect-owns registration', () => {
   assert.equal(hostPlugin.name, 'dsh-artemis')
   assert.deepEqual(hostPlugin.inject, ['webServer', 'connection'])
 
@@ -57,9 +54,7 @@ test('Client registration uses Android page type, guide entry and keyed native s
   const AndroidPanel = () => null
   const ctx = {
     effect(factory, label) { effects.push({ factory, label }) },
-    sidebarRightTabs: {
-      register(definition) { definitions.push(definition); return typeDispose },
-    },
+    sidebarRightTabs: { register(definition) { definitions.push(definition); return typeDispose } },
     slots: {
       inject(name, factory) {
         assert.equal(name, 'sidebar.right.pane.tab')
@@ -86,7 +81,6 @@ test('Client registration uses Android page type, guide entry and keyed native s
   assert.equal(definitions[0].guide.length, 1)
   assert.equal(definitions[0].guide[0].title(), 'Android')
   assert.match(definitions[0].guide[0].description(), /ARTEMIS/)
-
   assert.deepEqual(seatRegistrations[0].metadata, {
     name: 'sidebar.right.pane.tab',
     key: 'dsh-artemis:android',
