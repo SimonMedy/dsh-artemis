@@ -24,7 +24,16 @@ The fake server is the default adapter integration test target.
 
 ## Layer 4 — pinned Harness compatibility
 
-GitHub Actions checks out DeepSeek Harness into a sibling directory at the SHA in `docs/upstreams.md`. The plugin is then built/installed using the actual supported external-plugin mechanism. This job must fail when upstream types or installation semantics drift.
+`.github/workflows/harness-compat.yml` checks out DeepSeek Harness at the exact SHA in `docs/upstreams.md`, installs its dependencies with the upstream pnpm version, builds the Host libraries, and runs the real source CLI.
+
+The job then:
+
+1. packs `dsh-artemis` into a tarball so `files`/exports are tested rather than relying on a workspace symlink;
+2. installs that tarball through `dsh plugin --profile web add ...` into an isolated `DSH_HOME`;
+3. verifies that the profile dependency is materialized;
+4. runs `dsh web --dump-config` and requires the `dsh-artemis` Cordis row to exist.
+
+This is the package/composition compatibility gate. It intentionally does not claim browser rendering coverage; that belongs to Playwright.
 
 We do not vendor or submodule Harness into `dsh-artemis`.
 
