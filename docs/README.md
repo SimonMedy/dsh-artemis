@@ -7,6 +7,7 @@
 - [`maintainability.md`](maintainability.md): sustainable coding, compatibility and review practices.
 - [`mcp-integration.md`](mcp-integration.md): Harness MCP connection, config generation and ARTEMIS rules-skill integration.
 - [`testing.md`](testing.md): validation strategy from unit tests to full Harness + ARTEMIS integration.
+- [`hybrid-testing.md`](hybrid-testing.md): when to prefer deterministic tests vs ARTEMIS + multimodal visual verification.
 - [`upstreams.md`](upstreams.md): pinned DeepSeek Harness and ARTEMIS revisions.
 - [`roadmap.md`](roadmap.md): phased implementation plan.
 - [`../SECURITY.md`](../SECURITY.md): security boundaries, reporting policy and secure implementation requirements.
