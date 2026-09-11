@@ -11,6 +11,7 @@
   "exports": {
     ".": "./src/index.mjs",
     "./client": "./src/client/index.mjs",
+    "./rules-skill": "./src/integration/rules-skill-plugin.mjs",
     "./package.json": "./package.json"
   },
   "dsh": {
