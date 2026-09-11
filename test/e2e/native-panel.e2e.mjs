@@ -5,8 +5,10 @@ import { chromium } from 'playwright'
 
 const authUrlFile = process.env.DSH_AUTH_URL_FILE
 const artifactDir = process.env.DSH_ARTEMIS_E2E_ARTIFACT_DIR
+const sessionCwd = process.env.DSH_E2E_SESSION_CWD
 if (!authUrlFile) throw new Error('DSH_AUTH_URL_FILE is required')
 if (!artifactDir) throw new Error('DSH_ARTEMIS_E2E_ARTIFACT_DIR is required')
+if (!sessionCwd) throw new Error('DSH_E2E_SESSION_CWD is required')
 
 const authenticatedUrl = (await readFile(authUrlFile, 'utf8')).trim()
 if (!authenticatedUrl.startsWith('http://127.0.0.1:')) throw new Error('Harness authenticated URL is not loopback HTTP')
@@ -22,9 +24,10 @@ page.on('console', (message) => {
 })
 
 let phase = 'bootstrap'
+let createdSessionId = null
 
 async function bootDiagnostics() {
-  return page.evaluate(() => {
+  return page.evaluate((sessionId) => {
     const boot = window.__DSH_BOOT__
     const entries = boot && Array.isArray(boot.entries)
       ? boot.entries.map((entry) => ({
@@ -35,6 +38,7 @@ async function bootDiagnostics() {
         }))
       : []
     return {
+      createdSessionId: sessionId,
       bootPresent: Boolean(boot),
       entryIds: entries.map((entry) => entry.id),
       artemisEntry: entries.find((entry) => entry.id === 'dsh-artemis') ?? null,
@@ -42,7 +46,35 @@ async function bootDiagnostics() {
       guidePresent: Boolean(document.querySelector('[data-sidebar-right-guide]')),
       expandPresent: Boolean(document.querySelector('[data-sidebar-right-expand]')),
     }
-  }).catch(() => ({ diagnosticsFailed: true }))
+  }, createdSessionId).catch(() => ({ diagnosticsFailed: true, createdSessionId }))
+}
+
+async function createBlankSession(cwd) {
+  return page.evaluate(async (targetCwd) => {
+    const rpcId = crypto.randomUUID()
+    const response = await fetch('/api/session.create', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        type: 'client-request',
+        rpcId,
+        method: 'session.create',
+        payload: { args: { request: { cwd: targetCwd } } },
+      }),
+    })
+    if (!response.ok) throw new Error(`session.create transport failed: HTTP ${response.status}`)
+    const envelope = await response.json()
+    if (envelope?.type !== 'server-response' || envelope?.rpcId !== rpcId) {
+      throw new Error('session.create returned an invalid RPC envelope')
+    }
+    if (envelope?.result?.ok !== true || typeof envelope?.result?.value?.sessionId !== 'string') {
+      const code = envelope?.result?.error?.code ?? 'unknown'
+      const message = envelope?.result?.error?.message ?? 'session.create failed'
+      throw new Error(`session.create failed: ${code}: ${message}`)
+    }
+    return envelope.result.value.sessionId
+  }, cwd)
 }
 
 try {
@@ -56,11 +88,16 @@ try {
     await continueButton.click()
   }
 
-  phase = 'expand-sidebar'
+  phase = 'create-blank-session'
+  createdSessionId = await createBlankSession(sessionCwd)
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 })
+
+  phase = 'wait-session-shell'
   const expandSidebar = page.locator('[data-sidebar-right-expand]')
-  if (await expandSidebar.count() > 0 && await expandSidebar.isVisible()) {
-    await expandSidebar.click()
-  }
+  await expandSidebar.waitFor({ state: 'visible', timeout: 20_000 })
+
+  phase = 'expand-sidebar'
+  await expandSidebar.click()
 
   phase = 'open-android-guide-entry'
   const androidGuideEntry = page.locator('[data-sidebar-right-guide-entry="android"]')

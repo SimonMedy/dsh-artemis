@@ -148,6 +148,7 @@ jobs:
         env:
           DSH_AUTH_URL_FILE: ${{ runner.temp }}/dsh-auth-url
           DSH_ARTEMIS_E2E_ARTIFACT_DIR: ${{ runner.temp }}/dsh-artemis-e2e
+          DSH_E2E_SESSION_CWD: ${{ github.workspace }}/dsh-artemis
         run: |
           cp "$GITHUB_WORKSPACE/dsh-artemis/test/e2e/native-panel.e2e.mjs" ./dsh-artemis-native-panel.e2e.mjs
           pnpm exec node ./dsh-artemis-native-panel.e2e.mjs
