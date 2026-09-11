@@ -4,8 +4,34 @@
   "private": true,
   "description": "Native ARTEMIS integration for DeepSeek Harness",
   "type": "module",
+  "main": "./src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./client": "./src/client/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ]
+    }
+  },
+  "files": [
+    "src/**/*.mjs",
+    "cordis.patch.yml",
+    "README.md",
+    "SECURITY.md"
+  ],
   "engines": {
-    "node": ">=22"
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2"
   },
   "scripts": {
     "check": "node scripts/check-repo.mjs && node --test test/*.test.mjs",

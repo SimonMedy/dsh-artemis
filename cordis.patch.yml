@@ -1,0 +1,5 @@
+# Install dsh-artemis as one Host plugin row. The same package advertises its browser
+# face through package.json#dsh.client, so no duplicate Client row is inserted here.
+- insert:
+    - id: dsh-artemis
+      name: 'dsh-artemis'
