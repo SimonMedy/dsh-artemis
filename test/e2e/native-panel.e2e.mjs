@@ -84,13 +84,24 @@ async function createWorkspaceAndSession(cwd) {
   return { workspaceId, sessionId }
 }
 
-async function dismissSingleTransientModal() {
-  const dialogs = page.getByRole('dialog')
-  const count = await dialogs.count()
-  if (count === 0) return
-  assert.equal(count, 1, 'isolated E2E profile must not have multiple blocking dialogs')
-  await page.keyboard.press('Escape')
-  await dialogs.first().waitFor({ state: 'hidden', timeout: 10_000 })
+async function completeHarnessOnboarding({ waitForNotice = false } = {}) {
+  const notice = page.getByRole('dialog', { name: 'Internal Testing Notice' }).first()
+  if (waitForNotice) {
+    await notice.waitFor({ state: 'visible', timeout: 8_000 }).catch(() => {})
+  }
+  if (await notice.count() > 0 && await notice.isVisible()) {
+    const continueButton = notice.getByRole('button', { name: /^(Continue|继续)$/i })
+    await continueButton.click()
+    await notice.waitFor({ state: 'hidden', timeout: 10_000 })
+  }
+
+  const credentialDialog = page.getByRole('dialog', { name: 'Add an API key to get started' }).first()
+  await credentialDialog.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {})
+  if (await credentialDialog.count() > 0 && await credentialDialog.isVisible()) {
+    const configureLater = credentialDialog.getByRole('button', { name: /^(Configure later|稍后配置)$/i })
+    await configureLater.click()
+    await credentialDialog.waitFor({ state: 'hidden', timeout: 10_000 })
+  }
 }
 
 try {
@@ -98,9 +109,8 @@ try {
   await page.goto(authenticatedUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 })
   await page.waitForURL((url) => !url.searchParams.has('token'), { timeout: 15_000 })
 
-  phase = 'first-run'
-  const continueButton = page.getByRole('button', { name: /^(Continue|继续)$/i }).first()
-  if (await continueButton.count() > 0 && await continueButton.isVisible()) await continueButton.click()
+  phase = 'onboarding-before-workspace'
+  await completeHarnessOnboarding({ waitForNotice: true })
 
   phase = 'create-workspace-session'
   const created = await createWorkspaceAndSession(sessionCwd)
@@ -108,14 +118,14 @@ try {
   createdSessionId = created.sessionId
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 })
 
+  phase = 'onboarding-after-reload'
+  await completeHarnessOnboarding()
+
   phase = 'expand-workspace'
   const workspaceRows = page.locator('[role="treeitem"][aria-expanded]')
   await workspaceRows.first().waitFor({ state: 'visible', timeout: 20_000 })
   assert.equal(await workspaceRows.count(), 1, 'isolated E2E profile must contain exactly one workspace row')
   if (await workspaceRows.first().getAttribute('aria-expanded') !== 'true') await workspaceRows.first().click()
-
-  phase = 'dismiss-transient-modal'
-  await dismissSingleTransientModal()
 
   phase = 'open-created-session'
   const sessionRows = page.locator('[role="treeitem"][aria-selected]')
