@@ -51,8 +51,18 @@ jobs:
       - name: Install and build pinned Harness
         working-directory: deepseek-harness
         run: |
-          pnpm install --frozen-lockfile
-          pnpm run build
+          run_quiet() {
+            local name="$1"
+            shift
+            local log="$RUNNER_TEMP/${name}.log"
+            if ! "$@" > "$log" 2>&1; then
+              echo "::error title=${name} failed::Showing the final build lines"
+              tail -n 120 "$log"
+              exit 1
+            fi
+          }
+          run_quiet harness-install pnpm install --frozen-lockfile
+          run_quiet harness-build pnpm run build
           pnpm dsh --version
 
       - name: Pack dsh-artemis as a distribution artifact
@@ -120,8 +130,8 @@ jobs:
           pnpm dsh web --no-open --port 3080 > "$RUNNER_TEMP/dsh-web.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/dsh-web.pid"
           for _ in $(seq 1 120); do
-            if grep -qE '^dsh web: http://127\.0\.0\.1:3080/\?token=' "$RUNNER_TEMP/dsh-web.log"; then break; fi
-            if ! kill -0 "$(cat "$RUNNER_TEMP/dsh-web.pid")" 2>/dev/null; then
+            if grep -qT '^dsh web: http://127\.0\.0\.1:3080/\?token=' "$RUNNER_TEMP/dsh-web.log"; then break; fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/dsh-web.pid)" 2>/dev/null; then
               fail_start
             fi
             sleep 0.5
@@ -134,7 +144,8 @@ jobs:
           chmod 600 "$RUNNER_TEMP/dsh-auth-url"
 
       - name: Run Android panel browser E2E
-        working-directory: deepseek-harness/apps/web
+        working-directory: deepseek-harness
+/apps/web
         env:
           DSH_AUTH_URL_FILE: ${{ runner.temp }}/dsh-auth-url
           DSH_ARTEMIS_E2E_ARTIFACT_DIR: ${{ runner.temp }}/dsh-artemis-e2e
@@ -155,4 +166,4 @@ jobs:
         if: always()
         run: |
           if [ -f "$RUNNER_TEMP/dsh-web.pid" ]; then kill "$(cat "$RUNNER_TEMP/dsh-web.pid")" 2>/dev/null || true; fi
-          if [ -f "$RUNNER_TEMP/fake-artemis.pid" ]; then kill "$(cat "$RUNNER_TEMP/fake-artemis.pid")" 2>/dev/null || true; fi
+          if [ -f "$RUNNER_TEMP/fake-artemis.pid" ]; then kill "$(cat "$RUNNER_TEMP/fake-artemis.pid)" 2>/dev/null || true; fi
