@@ -23,10 +23,11 @@ page.on('console', (message) => {
 })
 
 let phase = 'bootstrap'
+let createdWorkspaceId = null
 let createdSessionId = null
 
 async function bootDiagnostics() {
-  return page.evaluate((sessionId) => {
+  return page.evaluate(({ workspaceId, sessionId }) => {
     const boot = window.__DSH_BOOT__
     const entries = boot && Array.isArray(boot.entries)
       ? boot.entries.map((entry) => ({
@@ -37,6 +38,7 @@ async function bootDiagnostics() {
         }))
       : []
     return {
+      createdWorkspaceId: workspaceId,
       createdSessionId: sessionId,
       bootPresent: Boolean(boot),
       entryIds: entries.map((entry) => entry.id),
@@ -44,37 +46,59 @@ async function bootDiagnostics() {
       loaderPresent: Boolean(window.__ModuleLoader__),
       guidePresent: Boolean(document.querySelector('[data-sidebar-right-guide]')),
       expandPresent: Boolean(document.querySelector('[data-sidebar-right-expand]')),
+      workspaceRowCount: document.querySelectorAll('[role="treeitem"][aria-expanded]').length,
       sessionRowCount: document.querySelectorAll('[role="treeitem"][aria-selected]').length,
     }
-  }, createdSessionId).catch(() => ({ diagnosticsFailed: true, createdSessionId }))
+  }, { workspaceId: createdWorkspaceId, sessionId: createdSessionId })
+    .catch(() => ({ diagnosticsFailed: true, createdWorkspaceId, createdSessionId }))
 }
 
-async function createBlankSession(cwd) {
-  return page.evaluate(async (targetCwd) => {
+async function callHarnessRpc(endpoint, method, args) {
+  return page.evaluate(async ({ endpointPath, methodName, rpcArgs }) => {
     const rpcId = crypto.randomUUID()
-    const response = await fetch('/api/session/create', {
+    const response = await fetch(`/api/${endpointPath}`, {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         type: 'client-request',
         rpcId,
-        method: 'session/create',
-        payload: { args: { request: { cwd: targetCwd } } },
+        method: methodName,
+        payload: { args: rpcArgs },
       }),
     })
-    if (!response.ok) throw new Error(`session.create transport failed: HTTP ${response.status}`)
+    if (!response.ok) throw new Error(`${methodName} transport failed: HTTP ${response.status}`)
     const envelope = await response.json()
     if (envelope?.type !== 'server-response' || envelope?.rpcId !== rpcId) {
-      throw new Error('session.create returned an invalid RPC envelope')
+      throw new Error(`${methodName} returned an invalid RPC envelope`)
     }
-    if (envelope?.result?.ok !== true || typeof envelope?.result?.value?.sessionId !== 'string') {
+    if (envelope?.result?.ok !== true) {
       const code = envelope?.result?.error?.code ?? 'unknown'
-      const message = envelope?.result?.error?.message ?? 'session.create failed'
-      throw new Error(`session.create failed: ${code}: ${message}`)
+      const message = envelope?.result?.error?.message ?? `${methodName} failed`
+      throw new Error(`${methodName} failed: ${code}: ${message}`)
     }
-    return envelope.result.value.sessionId
-  }, cwd)
+    return envelope.result.value
+  }, { endpointPath: endpoint, methodName: method, rpcArgs: args })
+}
+
+async function createWorkspaceAndBlankSession(cwd) {
+  const workspaceValue = await callHarnessRpc('workspace/create', 'workspace/create', {
+    request: { path: cwd },
+  })
+  const workspaceId = workspaceValue?.workspace?.workspaceId
+  if (typeof workspaceId !== 'string' || !workspaceId) {
+    throw new Error('workspace.create did not return workspace.workspaceId')
+  }
+
+  const sessionValue = await callHarnessRpc('session/create', 'session/create', {
+    request: { workspaceId },
+  })
+  const sessionId = sessionValue?.sessionId
+  if (typeof sessionId !== 'string' || !sessionId) {
+    throw new Error('session.create did not return sessionId')
+  }
+
+  return { workspaceId, sessionId }
 }
 
 try {
@@ -88,8 +112,10 @@ try {
     await continueButton.click()
   }
 
-  phase = 'create-blank-session'
-  createdSessionId = await createBlankSession(sessionCwd)
+  phase = 'create-workspace-session'
+  const created = await createWorkspaceAndBlankSession(sessionCwd)
+  createdWorkspaceId = created.workspaceId
+  createdSessionId = created.sessionId
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 })
 
   phase = 'open-created-session'
