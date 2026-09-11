@@ -6,6 +6,17 @@ Instructions for contributors and coding agents working on `dsh-artemis`.
 
 Build a thin, native DeepSeek Harness plugin that exposes ARTEMIS Android state and controls in the Harness right sidebar. ARTEMIS MCP remains the agent-facing automation interface.
 
+## Required project policies
+
+Before changing runtime behavior, read and follow:
+
+- [`SECURITY.md`](SECURITY.md) for trust boundaries, secrets, network/ADB safety and security-review triggers;
+- [`docs/maintainability.md`](docs/maintainability.md) for module boundaries, compatibility discipline, dependency policy and definition of done;
+- [`docs/testing.md`](docs/testing.md) for the required validation layer;
+- [`docs/upstreams.md`](docs/upstreams.md) before coding against Harness or ARTEMIS.
+
+Security and maintainability are implementation requirements, not post-release cleanup tasks.
+
 ## Non-negotiable rules
 
 1. Never guess DeepSeek Harness Cordis APIs, slots, registries, services or events. Inspect the pinned/current upstream revision first.
@@ -18,6 +29,10 @@ Build a thin, native DeepSeek Harness plugin that exposes ARTEMIS Android state 
 8. Record tested upstream SHAs in `docs/upstreams.md` whenever compatibility changes.
 9. Add tests for behavior and protocol boundaries. UI-visible features require an integration/E2E plan before being considered complete.
 10. Prefer small reviewable commits and PRs.
+11. Never expose generic shell/ADB execution to the browser; Host operations must use narrow validated commands.
+12. Never leak credentials, environment secrets, raw stack traces or sensitive screen/trace data through Client RPC or logs.
+13. Do not weaken CSP/CORS/origin/security controls as an integration shortcut.
+14. New process-spawning, network-proxying, streaming, filesystem or credential-handling code requires an explicit review against `SECURITY.md`.
 
 ## Upstream workflow
 
@@ -39,6 +54,16 @@ src/
 ```
 
 No framework-specific source is added until the current Harness plugin loading/build contract is verified.
+
+## Development quality
+
+- Prefer project-owned typed contracts at external boundaries.
+- Keep Cordis/Harness and ARTEMIS-specific imports inside their adapters.
+- Use argument-safe process APIs; do not interpolate device identifiers into shell command strings.
+- Bound network/process calls with timeouts and validate external response shapes.
+- Keep dependencies minimal and justify runtime additions.
+- Add deterministic regression tests for fixed bugs whenever practical.
+- Keep UI components focused on rendering/interactions; transport and normalization belong outside React components.
 
 ## Validation
 
