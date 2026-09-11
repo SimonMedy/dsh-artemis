@@ -30,15 +30,27 @@ function readyClient() {
   }
 }
 
-test('registers one exact same-origin overview route through Harness webServer', () => {
+function trustedContext(registrations, dispose) {
+  return {
+    webServer: { register(route) { registrations.push(route); return dispose } },
+    connection: { requestRejection() { return undefined } },
+  }
+}
+
+test('registers one exact overview route behind Harness connection trust', () => {
   const registrations = []
   const dispose = () => {}
-  const ctx = { webServer: { register(route) { registrations.push(route); return dispose } } }
+  const ctx = trustedContext(registrations, dispose)
 
   assert.equal(registerArtemisHostRoutes(ctx, readyClient()), dispose)
   assert.equal(registrations.length, 1)
   assert.equal(registrations[0].kind, 'exact')
   assert.equal(registrations[0].path, OVERVIEW_ROUTE)
+})
+
+test('registration refuses to expose a route without Harness connection trust', () => {
+  const ctx = { webServer: { register() { throw new Error('must not register') } } }
+  assert.throws(() => registerArtemisHostRoutes(ctx, readyClient()), /connection trust service/)
 })
 
 test('overview exposes normalized state and not the upstream stream URL', async () => {
@@ -53,6 +65,21 @@ test('overview exposes normalized state and not the upstream stream URL', async 
       activeDeviceSerial: 'emulator-5554',
       stream: { connected: true },
     })
+  })
+})
+
+test('Harness trust rejection happens before method handling or ARTEMIS access', async () => {
+  let called = false
+  const client = readyClient()
+  client.health = async () => { called = true; return { reachable: true, status: 'ready' } }
+  const handler = createOverviewHandler(client, { requestRejection: () => 403 })
+
+  await serve(handler, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}${OVERVIEW_ROUTE}`, { method: 'POST' })
+    assert.equal(response.status, 403)
+    assert.equal(response.headers.get('cache-control'), 'no-store')
+    assert.equal(called, false)
+    assert.equal(await response.text(), '')
   })
 })
 
