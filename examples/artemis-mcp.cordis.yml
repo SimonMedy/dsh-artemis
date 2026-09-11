@@ -1,11 +1,18 @@
 # Reference-only Harness Cordis row for an existing local ARTEMIS checkout.
-# Replace the cwd value with the absolute ARTEMIS root on the current machine.
-- id: mcp-artemis
-  name: '@deepseek-ai/dsh-mcp-client'
+# Prefer generating this with:
+#   dsh-artemis-mcp-config --artemis-root /absolute/path/to/artemis
+#
+# The Python path shown here follows ARTEMIS' own installer behavior on POSIX.
+- id: "mcp-artemis"
+  name: "@deepseek-ai/dsh-mcp-client"
   config:
-    serverName: artemis
-    transport: stdio
-    command: uv
-    args: ['run', 'artemis', 'mcp']
-    cwd: '/absolute/path/to/artemis'
+    serverName: "artemis"
+    transport: "stdio"
+    command: "/absolute/path/to/artemis/.venv/bin/python"
+    args: ["-m","mcp_server"]
+    cwd: "/absolute/path/to/artemis"
+    env:
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: "/absolute/path/to/artemis"
+      ARTEMIS_DESKTOP_NOTIFY: "true"
     failOnStartupError: false
