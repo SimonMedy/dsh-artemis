@@ -7,6 +7,8 @@ on:
       - "cordis.patch.yml"
       - "src/**"
       - "lib/client.js"
+      - "test/e2e/**"
+      - "test/fixtures/fake-artemis.mjs"
       - "docs/upstreams.md"
       - ".github/workflows/harness-compat.yml"
   workflow_dispatch:
@@ -19,9 +21,9 @@ env:
   PNPM_VERSION: 11.7.0
 
 jobs:
-  install-and-compose:
+  install-compose-and-browser-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout dsh-artemis
         uses: actions/checkout@v4
@@ -46,11 +48,11 @@ jobs:
           corepack prepare "pnpm@${PNPM_VERSION}" --activate
           pnpm --version
 
-      - name: Install and build Harness host libraries
+      - name: Install and build pinned Harness
         working-directory: deepseek-harness
         run: |
           pnpm install --frozen-lockfile
-          pnpm run build:lib:host
+          pnpm run build
           pnpm dsh --version
 
       - name: Pack dsh-artemis as a distribution artifact
@@ -85,3 +87,65 @@ jobs:
           pnpm dsh web --dump-config > "$RUNNER_TEMP/dsh-web-config.yml"
           grep -F 'id: dsh-artemis' "$RUNNER_TEMP/dsh-web-config.yml"
           grep -F 'dsh-artemis' "$RUNNER_TEMP/dsh-web-config.yml"
+
+      - name: Install Chromium for the Harness Playwright runtime
+        working-directory: deepseek-harness/apps/web
+        run: pnpm exec playwright install chromium
+
+      - name: Start fake ARTEMIS
+        run: |
+          node dsh-artemis/test/fixtures/fake-artemis.mjs > "$RUNNER_TEMP/fake-artemis.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/fake-artemis.pid"
+          for _ in $(seq 1 40); do
+            if curl --fail --silent http://127.0.0.1:8000/api/status >/dev/null; then exit 0; fi
+            sleep 0.25
+          done
+          echo "Fake ARTEMIS failed to start" >&2
+          exit 1
+
+      - name: Start authenticated Harness Web
+        working-directory: deepseek-harness
+        env:
+          DSH_HOME: ${{ runner.temp }}/dsh-home
+        run: |
+          pnpm dsh web --no-open --port 3080 > "$RUNNER_TEMP/dsh-web.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/dsh-web.pid"
+          for _ in $(seq 1 120); do
+            if grep -qE '^dsh web: http://127\.0\.0\.1:3080/\?token=' "$RUNNER_TEMP/dsh-web.log"; then break; fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/dsh-web.pid")" 2>/dev/null; then
+              sed -E 's/(token=)[^[:space:]]+/\1<redacted>/g' "$RUNNER_TEMP/dsh-web.log" >&2
+              exit 1
+            fi
+            sleep 0.5
+          done
+          AUTH_URL=$(sed -nE 's#^dsh web: (http://127\.0\.0\.1:3080/\?token=[^[:space:]]+).*#\1#p' "$RUNNER_TEMP/dsh-web.log" | tail -n 1)
+          if [ -z "$AUTH_URL" ]; then
+            sed -E 's/(token=)[^[:space:]]+/\1<redacted>/g' "$RUNNER_TEMP/dsh-web.log" >&2
+            exit 1
+          fi
+          printf '%s' "$AUTH_URL" > "$RUNNER_TEMP/dsh-auth-url"
+          chmod 600 "$RUNNER_TEMP/dsh-auth-url"
+
+      - name: Run Android panel browser E2E
+        working-directory: deepseek-harness/apps/web
+        env:
+          DSH_AUTH_URL_FILE: ${{ runner.temp }}/dsh-auth-url
+          DSH_ARTEMIS_E2E_ARTIFACT_DIR: ${{ runner.temp }}/dsh-artemis-e2e
+        run: |
+          cp "$GITHUB_WORKSPACE/dsh-artemis/test/e2e/native-panel.e2e.mjs" ./dsh-artemis-native-panel.e2e.mjs
+          pnpm exec node ./dsh-artemis-native-panel.e2e.mjs
+
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsh-artemis-browser-e2e-failure
+          path: ${{ runner.temp }}/dsh-artemis-e2e
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Stop local test services
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/dsh-web.pid" ]; then kill "$(cat "$RUNNER_TEMP/dsh-web.pid")" 2>/dev/null || true; fi
+          if [ -f "$RUNNER_TEMP/fake-artemis.pid" ]; then kill "$(cat "$RUNNER_TEMP/fake-artemis.pid")" 2>/dev/null || true; fi
