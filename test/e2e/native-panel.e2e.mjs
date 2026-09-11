@@ -45,6 +45,7 @@ async function bootDiagnostics() {
       loaderPresent: Boolean(window.__ModuleLoader__),
       guidePresent: Boolean(document.querySelector('[data-sidebar-right-guide]')),
       expandPresent: Boolean(document.querySelector('[data-sidebar-right-expand]')),
+      sessionRowCount: document.querySelectorAll('[role="treeitem"][aria-selected]').length,
     }
   }, createdSessionId).catch(() => ({ diagnosticsFailed: true, createdSessionId }))
 }
@@ -92,6 +93,12 @@ try {
   createdSessionId = await createBlankSession(sessionCwd)
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 })
 
+  phase = 'open-created-session'
+  const sessionRows = page.locator('[role="treeitem"][aria-selected]')
+  await sessionRows.first().waitFor({ state: 'visible', timeout: 20_000 })
+  assert.equal(await sessionRows.count(), 1, 'isolated E2E profile must contain exactly one session row')
+  await sessionRows.first().click()
+
   phase = 'wait-session-shell'
   const expandSidebar = page.locator('[data-sidebar-right-expand]')
   await expandSidebar.waitFor({ state: 'visible', timeout: 20_000 })
@@ -128,7 +135,7 @@ try {
   const diagnostics = await bootDiagnostics()
   const summary = error instanceof Error ? error.message.split('\n')[0] : String(error)
   const signals = browserSignals.slice(-3).join(' | ')
-  console.error(`[dsh-artemis-e2e] phase=${phase} error=${summary} diagnostics=${JSON.stringify(diagnostics)}${signals ? ` browser=${signals}` : ''}`)
+  console.error(`[dsh-artemis-e2e] phase=${prase} error=${summary} diagnostics=${JSON.stringify(diagnostics)}${signals ? ` browser=${signals}` : ''}`)
   throw error
 } finally {
   await browser.close()
