@@ -52,14 +52,14 @@ async function bootDiagnostics() {
 async function createBlankSession(cwd) {
   return page.evaluate(async (targetCwd) => {
     const rpcId = crypto.randomUUID()
-    const response = await fetch('/api/session.create', {
+    const response = await fetch('/api/session/create', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         type: 'client-request',
         rpcId,
-        method: 'session.create',
+        method: 'session/create',
         payload: { args: { request: { cwd: targetCwd } } },
       }),
     })
