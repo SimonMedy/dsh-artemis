@@ -8,13 +8,14 @@ import { inject as clientInject, registerAndroidClient } from '../src/client/reg
 test('package manifest advertises one bundle and one web client face', async () => {
   const pkg = JSON.parse(await readFile('package.json', 'utf8'))
   assert.equal(pkg.exports['.'], './src/index.mjs')
-  assert.equal(pkg.exports['./client'], './src/client/index.mjs')
+  assert.equal(pkg.exports['./client'], './lib/client.js')
   assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml')
   assert.equal(pkg.dsh.client.platform, 'web')
   assert.deepEqual(pkg.dsh.client.inject, [
     '@deepseek-ai/dsh-client-ui-primitives',
     '@deepseek-ai/dsh-client-ui-sidebar-right',
   ])
+  assert.deepEqual(pkg.dsh.client.external, ['@deepseek-ai/dsh-client-ui-primitives'])
   assert.equal(pkg.peerDependencies['@deepseek-ai/cordis'], '^4.0.2')
 })
 
