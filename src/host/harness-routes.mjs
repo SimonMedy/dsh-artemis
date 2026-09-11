@@ -29,6 +29,16 @@ function safeError(error) {
   return { status: 500, body: { error: { code: 'internal-error', message: 'Internal dsh-artemis error' } } }
 }
 
+function rejectUntrustedRequest(req, res, requestRejection) {
+  if (typeof requestRejection !== 'function') return false
+  const rejection = requestRejection(req)
+  if (rejection === undefined) return false
+  res.statusCode = rejection
+  res.setHeader('cache-control', 'no-store')
+  res.end()
+  return true
+}
+
 export async function buildOverview(client) {
   let health
   try {
@@ -66,8 +76,10 @@ export async function buildOverview(client) {
   })
 }
 
-export function createOverviewHandler(client) {
+export function createOverviewHandler(client, { requestRejection } = {}) {
   return async (req, res) => {
+    if (rejectUntrustedRequest(req, res, requestRejection)) return
+
     if (!methodAllowed(req)) {
       res.setHeader('allow', 'GET, HEAD')
       writeJson(res, 405, { error: { code: 'method-not-allowed', message: 'Method not allowed' } })
@@ -88,6 +100,9 @@ export function registerArtemisHostRoutes(ctx, client) {
   if (!ctx?.webServer || typeof ctx.webServer.register !== 'function') {
     throw new TypeError('A Harness webServer service is required')
   }
+  if (!ctx?.connection || typeof ctx.connection.requestRejection !== 'function') {
+    throw new TypeError('A Harness connection trust service is required')
+  }
   if (!client || typeof client.health !== 'function' || typeof client.listDevices !== 'function' || typeof client.getStreamState !== 'function') {
     throw new TypeError('An ARTEMIS client implementing the read-only MVP contract is required')
   }
@@ -95,6 +110,8 @@ export function registerArtemisHostRoutes(ctx, client) {
   return ctx.webServer.register({
     kind: 'exact',
     path: OVERVIEW_ROUTE,
-    handler: createOverviewHandler(client),
+    handler: createOverviewHandler(client, {
+      requestRejection: (req) => ctx.connection.requestRejection(req),
+    }),
   })
 }

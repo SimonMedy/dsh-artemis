@@ -21,4 +21,6 @@ Machine-side integration boundary for ARTEMIS, Android and verified Harness Host
 GET /dsh-artemis/v1/overview
 ```
 
+Production registration requires both Harness `webServer` and `connection` services. Every request is first passed through `connection.requestRejection(...)`, matching Harness' own Host route pattern so Host/Origin and browser authentication checks run before method handling or ARTEMIS access.
+
 The route exposes only normalized project data. It does not expose the ARTEMIS base URL or upstream live-stream URL, accepts only GET/HEAD, returns `no-store`, and maps failures to bounded error shapes. An unavailable ARTEMIS instance is represented as a normal `offline` overview so the UI can render that state without treating it as an exceptional browser failure.
