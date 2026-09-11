@@ -1,0 +1,14 @@
+{
+  "name": "dsh-artemis",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Native ARTEMIS integration for DeepSeek Harness",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "check": "node scripts/check-repo.mjs && node --test test/*.test.mjs",
+    "test": "node --test test/*.test.mjs"
+  }
+}
