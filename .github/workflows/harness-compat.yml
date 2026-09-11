@@ -108,20 +108,27 @@ jobs:
         env:
           DSH_HOME: ${{ runner.temp }}/dsh-home
         run: |
+          redact_log() {
+            sed -E 's/(token=)[^[:space:]]+/\1<redacted>/g' "$RUNNER_TEMP/dsh-web.log" | tail -n 12 | tr '\n' ' ' | sed -E 's/::/%3A%3A/g; s/%/%25/g; s/\r/%0D/g; s/\n/%0A/g'
+          }
+          fail_start() {
+            DETAIL=$(redact_log)
+            echo "::error title=Harness Web failed to start::$DETAIL"
+            exit 1
+          }
+
           pnpm dsh web --no-open --port 3080 > "$RUNNER_TEMP/dsh-web.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/dsh-web.pid"
           for _ in $(seq 1 120); do
             if grep -qE '^dsh web: http://127\.0\.0\.1:3080/\?token=' "$RUNNER_TEMP/dsh-web.log"; then break; fi
             if ! kill -0 "$(cat "$RUNNER_TEMP/dsh-web.pid")" 2>/dev/null; then
-              sed -E 's/(token=)[^[:space:]]+/\1<redacted>/g' "$RUNNER_TEMP/dsh-web.log" >&2
-              exit 1
+              fail_start
             fi
             sleep 0.5
           done
           AUTH_URL=$(sed -nE 's#^dsh web: (http://127\.0\.0\.1:3080/\?token=[^[:space:]]+).*#\1#p' "$RUNNER_TEMP/dsh-web.log" | tail -n 1)
           if [ -z "$AUTH_URL" ]; then
-            sed -E 's/(token=)[^[:space:]]+/\1<redacted>/g' "$RUNNER_TEMP/dsh-web.log" >&2
-            exit 1
+            fail_start
           fi
           printf '%s' "$AUTH_URL" > "$RUNNER_TEMP/dsh-auth-url"
           chmod 600 "$RUNNER_TEMP/dsh-auth-url"
