@@ -2,6 +2,7 @@ import { registerArtemisEvidenceRoute } from './host/artemis-evidence.mjs'
 import { ArtemisHttpClient } from './host/artemis-http.mjs'
 import { withBrowserResponseSecurity } from './host/browser-response-security.mjs'
 import { registerArtemisHostRoutes } from './host/harness-routes.mjs'
+import { createBoundedPanelClient } from './host/panel-client-bounds.mjs'
 import { inspectArtemisSetup } from './integration/artemis-setup-status.mjs'
 
 export const name = 'dsh-artemis'
@@ -15,6 +16,7 @@ export const inject = ['webServer', 'connection']
  */
 export function apply(ctx) {
   const client = new ArtemisHttpClient()
+  const panelClient = createBoundedPanelClient(client)
   const setupStatus = inspectArtemisSetup()
   ctx.effect(
     () => {
@@ -22,7 +24,7 @@ export function apply(ctx) {
         webServer: withBrowserResponseSecurity(ctx.webServer),
         connection: ctx.connection,
       }
-      const disposeHostRoutes = registerArtemisHostRoutes(routeContext, client, { setupStatus })
+      const disposeHostRoutes = registerArtemisHostRoutes(routeContext, panelClient, { setupStatus })
       const disposeEvidence = registerArtemisEvidenceRoute(routeContext, client)
       return () => {
         disposeEvidence?.()
