@@ -2,114 +2,409 @@ import assert from 'node:assert/strict'
 import { mkdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { chromium } from 'playwright'
+
 const authUrlFile = process.env.DSH_AUTH_URL_FILE
 const artifactDir = process.env.DSH_ARTEMIS_E2E_ARTIFACT_DIR
 const sessionCwd = process.env.DSH_E2E_SESSION_CWD
+
 if (!authUrlFile) throw new Error('DSH_AUTH_URL_FILE is required')
 if (!artifactDir) throw new Error('DSH_ARTEMIS_E2E_ARTIFACT_DIR is required')
 if (!sessionCwd) throw new Error('DSH_E2E_SESSION_CWD is required')
+
 const authenticatedUrl = (await readFile(authUrlFile, 'utf8')).trim()
-if (!authenticatedUrl.startsWith('http://127.0.0.1:')) throw new Error('Harness authenticated URL is not loopback HTTP')
+if (!authenticatedUrl.startsWith('http://127.0.0.1:')) {
+  throw new Error('Harness authenticated URL is not loopback HTTP')
+}
+
 await mkdir(artifactDir, { recursive: true })
+
 const browser = await chromium.launch({ headless: true })
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
 const browserSignals = []
+
 page.on('pageerror', (error) => browserSignals.push(`pageerror:${error.message}`))
-page.on('console', (message) => { if (message.type() === 'error') browserSignals.push(`console:${message.text()}`) })
+page.on('console', (message) => {
+  if (message.type() === 'error') browserSignals.push(`console:${message.text()}`)
+})
+
 let phase = 'bootstrap'
 let createdWorkspaceId = null
 let createdSessionId = null
+
 async function diagnostics() {
   return page.evaluate(({ workspaceId, sessionId }) => {
     const entries = Array.isArray(window.__DSH_BOOT__?.entries) ? window.__DSH_BOOT__.entries : []
-    const dialogs = [...document.querySelectorAll('[role="dialog"]')].map((element) => ({ label: element.getAttribute('aria-label'), text: (element.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 240) }))
-    return { createdWorkspaceId: workspaceId, createdSessionId: sessionId, bootPresent: Boolean(window.__DSH_BOOT__), entryIds: entries.map((entry) => entry?.id ?? null), artemisEntry: entries.find((entry) => entry?.id === 'dsh-artemis') ?? null, loaderPresent: Boolean(window.__ModuleLoader__), guidePresent: Boolean(document.querySelector('[data-sidebar-right-guide]')), expandPresent: Boolean(document.querySelector('[data-sidebar-right-expand]')), workspaceRows: document.querySelectorAll('[role="treeitem"][aria-expanded]').length, sessionRows: document.querySelectorAll('[role="treeitem"][aria-selected]').length, dialogs }
-  }, { workspaceId: createdWorkspaceId, sessionId: createdSessionId }).catch(() => ({ diagnosticsFailed: true, createdWorkspaceId, createdSessionId }))
+    const dialogs = [...document.querySelectorAll('[role="dialog"]')].map((element) => ({
+      label: element.getAttribute('aria-label'),
+      text: (element.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 240),
+    }))
+    return {
+      createdWorkspaceId: workspaceId,
+      createdSessionId: sessionId,
+      bootPresent: Boolean(window.__DSH_BOOT__),
+      entryIds: entries.map((entry) => entry?.id ?? null),
+      artemisEntry: entries.find((entry) => entry?.id === 'dsh-artemis') ?? null,
+      loaderPresent: Boolean(window.__ModuleLoader__),
+      guidePresent: Boolean(document.querySelector('[data-sidebar-right-guide]')),
+      expandPresent: Boolean(document.querySelector('[data-sidebar-right-expand]')),
+      workspaceRows: document.querySelectorAll('[role="treeitem"][aria-expanded]').length,
+      sessionRows: document.querySelectorAll('[role="treeitem"][aria-selected]').length,
+      dialogs,
+    }
+  }, {
+    workspaceId: createdWorkspaceId,
+    sessionId: createdSessionId,
+  }).catch(() => ({
+    diagnosticsFailed: true,
+    createdWorkspaceId,
+    createdSessionId,
+  }))
 }
+
 async function callHarnessRpc(endpoint, method, args) {
   return page.evaluate(async ({ endpoint, method, args }) => {
     const rpcId = crypto.randomUUID()
-    const response = await fetch(`/api/${endpoint}`, { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'client-request', rpcId, method, payload: { args } }) })
+    const response = await fetch(`/api/${endpoint}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        type: 'client-request',
+        rpcId,
+        method,
+        payload: { args },
+      }),
+    })
     if (!response.ok) throw new Error(`${method} transport failed: HTTP ${response.status}`)
+
     const envelope = await response.json()
-    if (envelope?.type !== 'server-response' || envelope?.rpcId !== rpcId) throw new Error(`${method} returned an invalid RPC envelope`)
-    if (envelope?.result?.ok !== true) { const code = envelope?.result?.error?.code ?? 'unknown'; const message = envelope?.result?.error?.message ?? `${method} failed`; throw new Error(`${method} failed: ${code}: ${message}`) }
+    if (envelope?.type !== 'server-response' || envelope?.rpcId !== rpcId) {
+      throw new Error(`${method} returned an invalid RPC envelope`)
+    }
+    if (envelope?.result?.ok !== true) {
+      const code = envelope?.result?.error?.code ?? 'unknown'
+      const message = envelope?.result?.error?.message ?? `${method} failed`
+      throw new Error(`${method} failed: ${code}: ${message}`)
+    }
     return envelope.result.value
   }, { endpoint, method, args })
 }
+
 async function configureDeterministicProvider() {
   const described = await callHarnessRpc('settings/describe', 'settings/describe', {})
-  const namespace = Array.isArray(described?.namespaces) ? described.namespaces.find((candidate) => candidate?.ns === 'llm-deepseek') : null
-  assert.ok(namespace); assert.ok(Number.isSafeInteger(namespace.revision))
-  await callHarnessRpc('settings/update', 'settings/update', { ns: 'llm-deepseek', patch: { baseURL: 'http://127.0.0.1:8001' }, expectedRevision: namespace.revision })
-  await callHarnessRpc('credentials/set', 'credentials/set', { ref: 'DEEPSEEK_API_KEY', value: 'dsh-artemis-e2e-dummy' })
+  const namespace = Array.isArray(described?.namespaces)
+    ? described.namespaces.find((candidate) => candidate?.ns === 'llm-deepseek')
+    : null
+  assert.ok(namespace)
+  assert.ok(Number.isSafeInteger(namespace.revision))
+
+  await callHarnessRpc('settings/update', 'settings/update', {
+    ns: 'llm-deepseek',
+    patch: { baseURL: 'http://127.0.0.1:8001' },
+    expectedRevision: namespace.revision,
+  })
+  await callHarnessRpc('credentials/set', 'credentials/set', {
+    ref: 'DEEPSEEK_API_KEY',
+    value: 'dsh-artemis-e2e-dummy',
+  })
 }
+
 async function createWorkspaceAndSession(cwd) {
-  const workspaceValue = await callHarnessRpc('workspace/create', 'workspace/create', { request: { path: cwd } })
+  const workspaceValue = await callHarnessRpc('workspace/create', 'workspace/create', {
+    request: { path: cwd },
+  })
   const workspaceId = workspaceValue?.workspace?.workspaceId
-  if (typeof workspaceId !== 'string' || !workspaceId) throw new Error('workspace.create did not return workspace.workspaceId')
-  const sessionValue = await callHarnessRpc('session/create', 'session/create', { request: { workspaceId } })
+  if (typeof workspaceId !== 'string' || !workspaceId) {
+    throw new Error('workspace.create did not return workspace.workspaceId')
+  }
+
+  const sessionValue = await callHarnessRpc('session/create', 'session/create', {
+    request: { workspaceId },
+  })
   const sessionId = sessionValue?.sessionId
-  if (typeof sessionId !== 'string' || !sessionId) throw new Error('session.create did not return sessionId')
+  if (typeof sessionId !== 'string' || !sessionId) {
+    throw new Error('session.create did not return sessionId')
+  }
+
   return { workspaceId, sessionId }
 }
+
 async function engageSession(sessionId) {
-  const value = await callHarnessRpc('session/prompt', 'session/prompt', { request: { requestId: crypto.randomUUID(), sessionId, mode: 'queue', content: [{ type: 'text', text: 'Open the deterministic browser test session.' }], clientTimeZone: 'UTC' } })
+  const value = await callHarnessRpc('session/prompt', 'session/prompt', {
+    request: {
+      requestId: crypto.randomUUID(),
+      sessionId,
+      mode: 'queue',
+      content: [{ type: 'text', text: 'Open the deterministic browser test session.' }],
+      clientTimeZone: 'UTC',
+    },
+  })
   assert.equal(value?.accepted, true)
+
   const deadline = Date.now() + 20_000
   while (Date.now() < deadline) {
     const list = await callHarnessRpc('session/list', 'session/list', { _request: {} })
-    const item = Array.isArray(list?.items) ? list.items.find((entry) => entry?.sessionId === sessionId) : null
+    const item = Array.isArray(list?.items)
+      ? list.items.find((entry) => entry?.sessionId === sessionId)
+      : null
     if (item?.blank === false) {
       const title = `dsh-artemis E2E ${sessionId.slice(-8)}`
-      const renamed = await callHarnessRpc('session/rename', 'session/rename', { request: { sessionId, title } })
+      const renamed = await callHarnessRpc('session/rename', 'session/rename', {
+        request: { sessionId, title },
+      })
       assert.equal(renamed?.title, title)
       return title
     }
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
+
   throw new Error('Harness session did not become non-blank after the deterministic prompt')
 }
+
 async function completeHarnessOnboarding({ waitForNotice = false } = {}) {
   const notice = page.getByRole('dialog', { name: 'Internal Testing Notice' }).first()
-  if (waitForNotice) await notice.waitFor({ state: 'visible', timeout: 8_000 }).catch(() => {})
-  if (await notice.count() > 0 && await notice.isVisible()) { await notice.getByRole('button', { name: /^(Continue|继续)$/i }).click(); await notice.waitFor({ state: 'hidden', timeout: 10_000 }) }
+  if (waitForNotice) {
+    await notice.waitFor({ state: 'visible', timeout: 8_000 }).catch(() => {})
+  }
+  if (await notice.count() > 0 && await notice.isVisible()) {
+    await notice.getByRole('button', { name: /^(Continue|继续)$/i }).click()
+    await notice.waitFor({ state: 'hidden', timeout: 10_000 })
+  }
+
   const credentialDialog = page.getByRole('dialog', { name: 'Add an API key to get started' }).first()
   await credentialDialog.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {})
-  if (await credentialDialog.count() > 0 && await credentialDialog.isVisible()) { await credentialDialog.getByRole('button', { name: /^(Configure later|稍后配置)$/i }).click(); await credentialDialog.waitFor({ state: 'hidden', timeout: 10_000 }) }
+  if (await credentialDialog.count() > 0 && await credentialDialog.isVisible()) {
+    await credentialDialog.getByRole('button', { name: /^(Configure later|稍后配置)$/i }).click()
+    await credentialDialog.waitFor({ state: 'hidden', timeout: 10_000 })
+  }
 }
+
 async function waitForImageDimensions(locator, width, height, timeoutMs = 10_000) {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
-    const dimensions = await locator.evaluate((element) => ({ width: element.naturalWidth, height: element.naturalHeight }))
+    const dimensions = await locator.evaluate((element) => ({
+      width: element.naturalWidth,
+      height: element.naturalHeight,
+    }))
     if (dimensions.width === width && dimensions.height === height) return dimensions
     await new Promise((resolve) => setTimeout(resolve, 50))
   }
   throw new Error(`Image did not reach ${width}x${height}`)
 }
+
 try {
-  phase = 'authenticate'; await page.goto(authenticatedUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 }); await page.waitForURL((url) => !url.searchParams.has('token'), { timeout: 15_000 })
-  phase = 'onboarding-before-workspace'; await completeHarnessOnboarding({ waitForNotice: true })
-  phase = 'configure-local-provider'; await configureDeterministicProvider()
-  phase = 'create-workspace-session'; const created = await createWorkspaceAndSession(sessionCwd); createdWorkspaceId = created.workspaceId; createdSessionId = created.sessionId
-  phase = 'engage-session'; const createdSessionTitle = await engageSession(createdSessionId); await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 })
-  phase = 'onboarding-after-reload'; await completeHarnessOnboarding()
-  phase = 'expand-workspace'; const workspaceRows = page.locator('[role="treeitem"][aria-expanded]'); await workspaceRows.first().waitFor({ state: 'visible', timeout: 20_000 }); assert.equal(await workspaceRows.count(), 1); if (await workspaceRows.first().getAttribute('aria-expanded') !== 'true') await workspaceRows.first().click()
-  phase = 'open-created-session'; const createdSessionRow = page.locator('[role="treeitem"][aria-selected]').filter({ hasText: createdSessionTitle }); await createdSessionRow.waitFor({ state: 'visible', timeout: 20_000 }); assert.equal(await createdSessionRow.count(), 1); await createdSessionRow.click()
-  phase = 'wait-session-shell'; const expandSidebar = page.locator('[data-sidebar-right-expand]'); await expandSidebar.waitFor({ state: 'visible', timeout: 20_000 }); await expandSidebar.click()
-  phase = 'open-android-guide-entry'; const androidGuideEntry = page.locator('[data-sidebar-right-guide-entry="android"]'); await androidGuideEntry.waitFor({ state: 'visible', timeout: 20_000 }); await androidGuideEntry.click()
-  phase = 'wait-panel'; const panel = page.locator('[data-dsh-artemis-panel]'); await panel.waitFor({ state: 'visible', timeout: 15_000 })
-  phase = 'assert-ready-state'; await panel.getByText('ARTEMIS Ready', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 }); await panel.getByText('Pixel_9', { exact: true }).waitFor({ state: 'visible' }); await panel.getByText('emulator-5554', { exact: true }).waitFor({ state: 'visible' }); await panel.getByText('Connected', { exact: true }).waitFor({ state: 'visible' })
-  phase = 'assert-task-evidence'; const evidence = page.getByRole('region', { name: 'ARTEMIS task evidence' }); await evidence.waitFor({ state: 'visible', timeout: 10_000 }); await evidence.getByText('Verify Android task evidence', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 }); await evidence.getByText('Running', { exact: true }).waitFor({ state: 'visible' }); await evidence.getByText('Step 1', { exact: true }).waitFor({ state: 'visible' }); await evidence.getByText('press_key', { exact: true }).first().waitFor({ state: 'visible' }); const evidenceText = await evidence.innerText(); for (const secret of ['action-secret-must-not-leak', 'screenshot-bytes-must-not-leak', 'trace-payload-must-not-leak', 'active-task-secret-must-not-leak', 'model-info-must-not-leak']) assert.equal(evidenceText.includes(secret), false, `evidence leaked ${secret}`)
-  phase = 'inspect-trace-structure'; const inspectTraces = evidence.getByRole('button', { name: 'Inspect latest traces' }); await inspectTraces.click(); const traceStructure = evidence.getByRole('region', { name: 'Latest trace structure' }); await traceStructure.waitFor({ state: 'visible', timeout: 10_000 }); await traceStructure.getByText('device_observation', { exact: true }).waitFor({ state: 'visible' }); const traceRouteText = await page.evaluate(async () => { const response = await fetch('/dsh-artemis/v1/evidence/latest-traces', { credentials: 'same-origin', cache: 'no-store' }); if (!response.ok) throw new Error(`trace route HTTP ${response.status}`); return response.text() }); const traceText = `${await traceStructure.innerText()} ${traceRouteText}`; for (const secret of ['trace-root-secret-id', 'trace-child-secret-id', 'step-1', 'trace-tree-payload-must-not-leak', 'raw-thinking-must-not-leak', 'file:///tmp/trace-path-must-not-leak.png', 'llm-output-must-not-leak']) assert.equal(traceText.includes(secret), false, `trace evidence leaked ${secret}`)
-  phase = 'capture-screen'; const capture = panel.getByRole('button', { name: 'Capture Android screen' }); await capture.click(); const preview = panel.getByRole('img', { name: 'Android screen preview' }); await preview.waitFor({ state: 'visible', timeout: 10_000 }); assert.ok((await preview.getAttribute('src'))?.startsWith('blob:')); await waitForImageDimensions(preview, 1, 1)
-  phase = 'start-live'; const startLive = panel.getByRole('button', { name: 'Start Android live screen' }); await startLive.click(); const live = panel.getByRole('img', { name: 'Android live screen' }); await live.waitFor({ state: 'visible', timeout: 10_000 }); assert.equal(new URL(await live.getAttribute('src')).pathname, '/dsh-artemis/v1/live'); await waitForImageDimensions(live, 1, 1); assert.equal(await capture.isDisabled(), true)
-  phase = 'stop-live'; const stopLive = panel.getByRole('button', { name: 'Stop Android live screen' }); await stopLive.click(); await live.waitFor({ state: 'detached', timeout: 10_000 }); await preview.waitFor({ state: 'visible', timeout: 10_000 }); assert.equal(await capture.isDisabled(), false)
-  phase = 'refresh'; const refresh = panel.getByRole('button', { name: 'Refresh Android status' }); await refresh.click(); await panel.getByText('ARTEMIS Ready', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 })
-  phase = 'layout'; const panelBox = await panel.boundingBox(); assert.ok(panelBox && panelBox.width > 180 && panelBox.height > 200)
+  phase = 'authenticate'
+  await page.goto(authenticatedUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 })
+  await page.waitForURL((url) => !url.searchParams.has('token'), { timeout: 15_000 })
+
+  phase = 'onboarding-before-workspace'
+  await completeHarnessOnboarding({ waitForNotice: true })
+
+  phase = 'configure-local-provider'
+  await configureDeterministicProvider()
+
+  phase = 'create-workspace-session'
+  const created = await createWorkspaceAndSession(sessionCwd)
+  createdWorkspaceId = created.workspaceId
+  createdSessionId = created.sessionId
+
+  phase = 'engage-session'
+  const createdSessionTitle = await engageSession(createdSessionId)
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 })
+
+  phase = 'onboarding-after-reload'
+  await completeHarnessOnboarding()
+
+  phase = 'expand-workspace'
+  const workspaceRows = page.locator('[role="treeitem"][aria-expanded]')
+  await workspaceRows.first().waitFor({ state: 'visible', timeout: 20_000 })
+  assert.equal(await workspaceRows.count(), 1)
+  if (await workspaceRows.first().getAttribute('aria-expanded') !== 'true') {
+    await workspaceRows.first().click()
+  }
+
+  phase = 'open-created-session'
+  const createdSessionRow = page.locator('[role="treeitem"][aria-selected]').filter({
+    hasText: createdSessionTitle,
+  })
+  await createdSessionRow.waitFor({ state: 'visible', timeout: 20_000 })
+  assert.equal(await createdSessionRow.count(), 1)
+  await createdSessionRow.click()
+
+  phase = 'wait-session-shell'
+  const expandSidebar = page.locator('[data-sidebar-right-expand]')
+  await expandSidebar.waitFor({ state: 'visible', timeout: 20_000 })
+  await expandSidebar.click()
+
+  phase = 'open-android-guide-entry'
+  const androidGuideEntry = page.locator('[data-sidebar-right-guide-entry="android"]')
+  await androidGuideEntry.waitFor({ state: 'visible', timeout: 20_000 })
+  await androidGuideEntry.click()
+
+  phase = 'wait-panel'
+  const panel = page.locator('[data-dsh-artemis-panel]')
+  await panel.waitFor({ state: 'visible', timeout: 15_000 })
+
+  phase = 'assert-ready-state'
+  await panel.getByText('ARTEMIS Ready', { exact: true }).waitFor({
+    state: 'visible',
+    timeout: 10_000,
+  })
+  await panel.getByText('Pixel_9', { exact: true }).waitFor({ state: 'visible' })
+  await panel.getByText('emulator-5554', { exact: true }).waitFor({ state: 'visible' })
+  await panel.getByText('Connected', { exact: true }).waitFor({ state: 'visible' })
+
+  phase = 'assert-task-evidence'
+  const evidence = page.getByRole('region', { name: 'ARTEMIS task evidence' })
+  await evidence.waitFor({ state: 'visible', timeout: 10_000 })
+  await evidence.getByText('Verify Android task evidence', { exact: true }).waitFor({
+    state: 'visible',
+    timeout: 10_000,
+  })
+  await evidence.getByText('Running', { exact: true }).waitFor({ state: 'visible' })
+  await evidence.getByText('Step 1', { exact: true }).waitFor({ state: 'visible' })
+  await evidence.getByText('press_key', { exact: true }).first().waitFor({ state: 'visible' })
+  const evidenceText = await evidence.innerText()
+  for (const secret of [
+    'action-secret-must-not-leak',
+    'screenshot-bytes-must-not-leak',
+    'trace-payload-must-not-leak',
+    'active-task-secret-must-not-leak',
+    'model-info-must-not-leak',
+  ]) {
+    assert.equal(evidenceText.includes(secret), false, `evidence leaked ${secret}`)
+  }
+
+  phase = 'inspect-trace-structure'
+  const inspectTraces = evidence.getByRole('button', { name: 'Inspect latest traces' })
+  await inspectTraces.click()
+  const traceStructure = evidence.getByRole('region', { name: 'Latest trace structure' })
+  await traceStructure.waitFor({ state: 'visible', timeout: 10_000 })
+  await traceStructure.getByText('device_observation', { exact: true }).waitFor({
+    state: 'visible',
+  })
+  const traceRouteText = await page.evaluate(async () => {
+    const response = await fetch('/dsh-artemis/v1/evidence/latest-traces', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
+    if (!response.ok) throw new Error(`trace route HTTP ${response.status}`)
+    return response.text()
+  })
+  const traceText = `${await traceStructure.innerText()} ${traceRouteText}`
+  for (const secret of [
+    'trace-root-secret-id',
+    'trace-child-secret-id',
+    'step-1',
+    'trace-tree-payload-must-not-leak',
+    'raw-thinking-must-not-leak',
+    'file:///tmp/trace-path-must-not-leak.png',
+    'llm-output-must-not-leak',
+  ]) {
+    assert.equal(traceText.includes(secret), false, `trace evidence leaked ${secret}`)
+  }
+
+  phase = 'capture-visual-qa-checkpoint'
+  const visualQa = page.getByRole('region', { name: 'ARTEMIS visual QA checkpoint' })
+  await visualQa.waitFor({ state: 'visible', timeout: 10_000 })
+  const captureCheckpoint = visualQa.getByRole('button', {
+    name: 'Capture visual QA checkpoint',
+  })
+  await captureCheckpoint.click()
+
+  const checkpointImage = visualQa.getByRole('img', { name: 'Android visual QA checkpoint' })
+  await checkpointImage.waitFor({ state: 'visible', timeout: 10_000 })
+  const checkpointSrc = await checkpointImage.getAttribute('src')
+  assert.ok(checkpointSrc?.startsWith('blob:'))
+  await waitForImageDimensions(checkpointImage, 1, 1)
+
+  await visualQa.getByText('Verify Android task evidence', { exact: true }).waitFor({
+    state: 'visible',
+    timeout: 10_000,
+  })
+  await visualQa.getByText('Running', { exact: true }).waitFor({ state: 'visible' })
+  await visualQa.getByText('Step 1', { exact: true }).first().waitFor({ state: 'visible' })
+  await visualQa.getByText('press_key', { exact: true }).waitFor({ state: 'visible' })
+
+  const checkpointText = await visualQa.innerText()
+  for (const forbidden of [
+    'session-e2e',
+    'session_id',
+    'sessionId',
+    'task-e2e',
+    'step-1',
+    'trace-1',
+    'trace-root-secret-id',
+    'trace-child-secret-id',
+    'action-secret-must-not-leak',
+    'screenshot-bytes-must-not-leak',
+    'trace-payload-must-not-leak',
+    'active-task-secret-must-not-leak',
+    'model-info-must-not-leak',
+    'trace-tree-payload-must-not-leak',
+    'raw-thinking-must-not-leak',
+    'file:///tmp/trace-path-must-not-leak.png',
+    'llm-output-must-not-leak',
+  ]) {
+    assert.equal(checkpointText.includes(forbidden), false, `visual QA checkpoint leaked ${forbidden}`)
+  }
+
+  phase = 'capture-screen'
+  const capture = panel.getByRole('button', { name: 'Capture Android screen' })
+  await capture.click()
+  const preview = panel.getByRole('img', { name: 'Android screen preview' })
+  await preview.waitFor({ state: 'visible', timeout: 10_000 })
+  const previewSrc = await preview.getAttribute('src')
+  assert.ok(previewSrc?.startsWith('blob:'))
+  assert.notEqual(previewSrc, checkpointSrc)
+  await waitForImageDimensions(preview, 1, 1)
+  assert.equal(await checkpointImage.getAttribute('src'), checkpointSrc)
+
+  phase = 'start-live'
+  const startLive = panel.getByRole('button', { name: 'Start Android live screen' })
+  await startLive.click()
+  const live = panel.getByRole('img', { name: 'Android live screen' })
+  await live.waitFor({ state: 'visible', timeout: 10_000 })
+  assert.equal(new URL(await live.getAttribute('src')).pathname, '/dsh-artemis/v1/live')
+  await waitForImageDimensions(live, 1, 1)
+  assert.equal(await capture.isDisabled(), true)
+  await checkpointImage.waitFor({ state: 'visible', timeout: 10_000 })
+  assert.equal(await checkpointImage.getAttribute('src'), checkpointSrc)
+
+  phase = 'stop-live'
+  const stopLive = panel.getByRole('button', { name: 'Stop Android live screen' })
+  await stopLive.click()
+  await live.waitFor({ state: 'detached', timeout: 10_000 })
+  await preview.waitFor({ state: 'visible', timeout: 10_000 })
+  assert.equal(await preview.getAttribute('src'), previewSrc)
+  assert.equal(await capture.isDisabled(), false)
+  assert.equal(await checkpointImage.getAttribute('src'), checkpointSrc)
+
+  phase = 'refresh'
+  const refresh = panel.getByRole('button', { name: 'Refresh Android status' })
+  await refresh.click()
+  await panel.getByText('ARTEMIS Ready', { exact: true }).waitFor({
+    state: 'visible',
+    timeout: 10_000,
+  })
+
+  phase = 'layout'
+  const panelBox = await panel.boundingBox()
+  assert.ok(panelBox && panelBox.width > 180 && panelBox.height > 200)
 } catch (error) {
-  await page.screenshot({ path: join(artifactDir, 'native-panel-failure.png'), fullPage: true }).catch(() => {})
-  const state = await diagnostics(); const summary = error instanceof Error ? error.message.split('\n')[0] : String(error); const signals = browserSignals.slice(-3).join(' | ')
-  console.error(`[dsh-artemis-e2e] phase=${phase} error=${summary} diagnostics=${JSON.stringify(state)}${signals ? ` browser=${signals}` : ''}`)
+  await page.screenshot({
+    path: join(artifactDir, 'native-panel-failure.png'),
+    fullPage: true,
+  }).catch(() => {})
+  const state = await diagnostics()
+  const summary = error instanceof Error ? error.message.split('\n')[0] : String(error)
+  const signals = browserSignals.slice(-3).join(' | ')
+  console.error(
+    `[dsh-artemis-e2e] phase=${phase} error=${summary} diagnostics=${JSON.stringify(state)}${
+      signals ? ` browser=${signals}` : ''
+    }`,
+  )
   throw error
-} finally { await browser.close() }
+} finally {
+  await browser.close()
+}
