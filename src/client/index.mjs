@@ -2,6 +2,7 @@ import { createElement as h } from 'react'
 import { TaskEvidenceCard } from './evidence.mjs'
 import { AndroidPanel } from './panel.mjs'
 import { registerAndroidClient, inject } from './register.mjs'
+import { VisualQACheckpointCard } from './visual-qa.mjs'
 
 export { ANDROID_TAB_ID, ANDROID_TAB_KIND, androidTabDefinition } from './definition.mjs'
 export { inject }
@@ -15,6 +16,7 @@ function IntegratedAndroidPanel() {
   return h('div', { style: shellStyles.root, 'data-dsh-artemis-integrated-panel': '' },
     h('div', { style: shellStyles.panel }, h(AndroidPanel)),
     h(TaskEvidenceCard),
+    h(VisualQACheckpointCard),
   )
 }
 
