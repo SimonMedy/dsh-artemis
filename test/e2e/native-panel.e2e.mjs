@@ -119,7 +119,7 @@ async function engageSession(sessionId) {
 
   const deadline = Date.now() + 20_000
   while (Date.now() < deadline) {
-    const list = await callHarnessRpc('session/list', 'session/list', { request: {} })
+    const list = await callHarnessRpc('session/list', 'session/list', { _request: {} })
     const item = Array.isArray(list?.items) ? list.items.find((entry) => entry?.sessionId === sessionId) : null
     if (item?.blank === false) return
     await new Promise((resolve) => setTimeout(resolve, 100))
