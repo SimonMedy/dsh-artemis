@@ -42,6 +42,7 @@
   "scripts": {
     "check": "node scripts/check-repo.mjs && node --test test/*.test.mjs",
     "test": "node --test test/*.test.mjs",
+    "bundle:client": "node scripts/build-client.mjs",
     "mcp:config": "node ./bin/dsh-artemis-mcp-config.mjs"
   }
 }
