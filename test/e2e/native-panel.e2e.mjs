@@ -322,7 +322,7 @@ try {
     state: 'visible',
     timeout: 10_000,
   })
-  await visualQa.getByText('Running', { exact: true }).waitFor({ state: 'visible' })
+  await visualQa.getByText('running', { exact: true }).waitFor({ state: 'visible' })
   await visualQa.getByText('Step 1', { exact: true }).first().waitFor({ state: 'visible' })
   await visualQa.getByText('press_key', { exact: true }).waitFor({ state: 'visible' })
 
