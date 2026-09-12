@@ -34,6 +34,8 @@ The job:
 
 We do not vendor or submodule Harness into `dsh-artemis`.
 
+The pinned Harness revision has a verified intermittent bootstrap race in `ClientModuleRegistry.registerWebCarrier`: the process can exit before publishing its authenticated URL with both `registerWebCarrier` and `cannot get property "webServer" without inject` in the startup log. The compatibility workflow permits exactly one second boot attempt only for that exact signature. Any other startup failure fails immediately, a repeated occurrence fails on the second attempt, and the browser E2E itself is never retried.
+
 ## Layer 5 — real Harness browser E2E
 
 The same compatibility job starts two deterministic loopback fixtures before booting the **real built `dsh web`** with the packaged plugin installed:

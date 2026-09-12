@@ -126,26 +126,63 @@ jobs:
           DSH_HOME: ${{ runner.temp }}/dsh-home
         run: |
           redact_log() {
-            sed -E 's/(token=)[^[:space:]]+/\1<redacted>/g' "$RUNNER_TEMP/dsh-web.log" | tail -n 80 | tr '\n' ' ' | sed -E 's/::/%3A%3A/g; s/%/%25/g; s/\r/%0D/g; s/\n/%0A/g'
+            local log="$1"
+            sed -E 's/(token=)[^[:space:]]+/\1<redacted>/g' "$log" | tail -n 80 | tr '\n' ' ' | sed -E 's/::/%3A%3A/g; s/%/%25/g; s/\r/%0D/g; s/\n/%0A/g'
           }
           fail_start() {
-            DETAIL=$(redact_log)
-            echo "::error title=Harness Web failed to start::$DETAIL"
-            exit 1
+            local log="$1"
+            local detail
+            detail=$(redact_log "$log")
+            echo "::error title=Harness Web failed to start::$detail"
+            return 1
+          }
+          is_known_pinned_startup_race() {
+            local log="$1"
+            grep -Fq 'cannot get property "webServer" without inject' "$log" \
+              && grep -Fq 'registerWebCarrier' "$log"
+          }
+          start_harness() {
+            local attempt="$1"
+            local log="$RUNNER_TEMP/dsh-web-attempt-${attempt}.log"
+            : > "$log"
+            pnpm dsh web --no-open --port 3080 > "$log" 2>&1 &
+            local pid=$!
+            printf '%s' "$pid" > "$RUNNER_TEMP/dsh-web.pid"
+
+            for _ in $(seq 1 120); do
+              if grep -qE '^dsh web: http://127\.0\.0\.1:3080/\?token=' "$log"; then
+                cp "$log" "$RUNNER_TEMP/dsh-web.log"
+                return 0
+              fi
+              if ! kill -0 "$pid" 2>/dev/null; then
+                if [ "$attempt" -eq 1 ] && is_known_pinned_startup_race "$log"; then
+                  echo "::warning title=Pinned Harness startup race::Retrying dsh web once after the verified registerWebCarrier/webServer race"
+                  return 2
+                fi
+                fail_start "$log"
+                return 1
+              fi
+              sleep 0.5
+            done
+
+            kill "$pid" 2>/dev/null || true
+            fail_start "$log"
+            return 1
           }
 
-          pnpm dsh web --no-open --port 3080 > "$RUNNER_TEMP/dsh-web.log" 2>&1 &
-          echo $! > "$RUNNER_TEMP/dsh-web.pid"
-          for _ in $(seq 1 120); do
-            if grep -qE '^dsh web: http://127\.0\.0\.1:3080/\?token=' "$RUNNER_TEMP/dsh-web.log"; then break; fi
-            if ! kill -0 "$(cat "$RUNNER_TEMP/dsh-web.pid")" 2>/dev/null; then
-              fail_start
-            fi
+          if start_harness 1; then
+            :
+          else
+            STATUS=$?
+            if [ "$STATUS" -ne 2 ]; then exit "$STATUS"; fi
             sleep 0.5
-          done
+            start_harness 2
+          fi
+
           AUTH_URL=$(sed -nE 's#^dsh web: (http://127\.0\.0\.1:3080/\?token=[^[:space:]]+).*#\1#p' "$RUNNER_TEMP/dsh-web.log" | tail -n 1)
           if [ -z "$AUTH_URL" ]; then
-            fail_start
+            fail_start "$RUNNER_TEMP/dsh-web.log"
+            exit 1
           fi
           printf '%s' "$AUTH_URL" > "$RUNNER_TEMP/dsh-auth-url"
           chmod 600 "$RUNNER_TEMP/dsh-auth-url"
