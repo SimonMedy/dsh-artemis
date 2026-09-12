@@ -2,11 +2,14 @@ import { ArtemisProtocolError } from './artemis-http.mjs'
 import {
   DSH_ARTEMIS_PROTOCOL_VERSION,
   HOST_ROUTE_PREFIX,
+  LIVE_ROUTE,
   OVERVIEW_ROUTE,
   SNAPSHOT_ROUTE,
 } from '../shared/protocol.mjs'
 
-export { HOST_ROUTE_PREFIX, OVERVIEW_ROUTE, SNAPSHOT_ROUTE }
+export { HOST_ROUTE_PREFIX, LIVE_ROUTE, OVERVIEW_ROUTE, SNAPSHOT_ROUTE }
+
+const LIVE_BOUNDARY = 'dsh-artemis-frame'
 
 function writeJson(res, status, value, { head = false, extraHeaders = {} } = {}) {
   const body = JSON.stringify(value)
@@ -51,6 +54,40 @@ function safeError(error) {
   return { status: 500, body: { error: { code: 'internal-error', message: 'Internal dsh-artemis error' } } }
 }
 
+function waitForWritable(res, signal) {
+  if (signal.aborted || res.destroyed) return Promise.resolve(false)
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (value) => {
+      if (settled) return
+      settled = true
+      res.off('drain', onDrain)
+      res.off('close', onClose)
+      signal.removeEventListener('abort', onAbort)
+      resolve(value)
+    }
+    const onDrain = () => finish(true)
+    const onClose = () => finish(false)
+    const onAbort = () => finish(false)
+    res.once('drain', onDrain)
+    res.once('close', onClose)
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+async function writeStreamChunk(res, chunk, signal) {
+  if (signal.aborted || res.destroyed) return false
+  if (res.write(chunk)) return true
+  return waitForWritable(res, signal)
+}
+
+async function writeLiveFrame(res, frame, signal) {
+  const header = Buffer.from(`--${LIVE_BOUNDARY}\r\nContent-Type: image/png\r\nContent-Length: ${frame.data.byteLength}\r\n\r\n`)
+  if (!await writeStreamChunk(res, header, signal)) return false
+  if (!await writeStreamChunk(res, Buffer.from(frame.data.buffer, frame.data.byteOffset, frame.data.byteLength), signal)) return false
+  return writeStreamChunk(res, Buffer.from('\r\n'), signal)
+}
+
 export async function buildOverview(client) {
   let health
   try {
@@ -84,9 +121,7 @@ export function createOverviewHandler(client, { requestRejection } = {}) {
   return async (req, res) => {
     if (rejectUntrustedRequest(req, res, requestRejection)) return
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      writeJson(res, 405, { error: { code: 'method-not-allowed', message: 'Method not allowed' } }, {
-        extraHeaders: { allow: 'GET, HEAD' },
-      })
+      writeJson(res, 405, { error: { code: 'method-not-allowed', message: 'Method not allowed' } }, { extraHeaders: { allow: 'GET, HEAD' } })
       return
     }
     try {
@@ -102,9 +137,7 @@ export function createSnapshotHandler(client, { requestRejection } = {}) {
   return async (req, res) => {
     if (rejectUntrustedRequest(req, res, requestRejection)) return
     if (req.method !== 'GET') {
-      writeJson(res, 405, { error: { code: 'method-not-allowed', message: 'Method not allowed' } }, {
-        extraHeaders: { allow: 'GET' },
-      })
+      writeJson(res, 405, { error: { code: 'method-not-allowed', message: 'Method not allowed' } }, { extraHeaders: { allow: 'GET' } })
       return
     }
     try {
@@ -117,6 +150,53 @@ export function createSnapshotHandler(client, { requestRejection } = {}) {
   }
 }
 
+export function createLiveHandler(client, { requestRejection } = {}) {
+  return async (req, res) => {
+    if (rejectUntrustedRequest(req, res, requestRejection)) return
+    if (req.method !== 'GET') {
+      writeJson(res, 405, { error: { code: 'method-not-allowed', message: 'Method not allowed' } }, { extraHeaders: { allow: 'GET' } })
+      return
+    }
+
+    const controller = new AbortController()
+    const abort = () => controller.abort()
+    req.once('aborted', abort)
+    res.once('close', abort)
+    const iterator = client.streamSnapshots({ signal: controller.signal })[Symbol.asyncIterator]()
+
+    try {
+      const first = await iterator.next()
+      if (first.done) throw new ArtemisProtocolError('ARTEMIS live stream ended before a frame arrived', { code: 'incomplete-frame' })
+      if (controller.signal.aborted) return
+      res.writeHead(200, {
+        'content-type': `multipart/x-mixed-replace; boundary=${LIVE_BOUNDARY}`,
+        'cache-control': 'no-store',
+        'x-content-type-options': 'nosniff',
+      })
+      if (!await writeLiveFrame(res, first.value, controller.signal)) return
+      while (!controller.signal.aborted) {
+        const next = await iterator.next()
+        if (next.done) break
+        if (!await writeLiveFrame(res, next.value, controller.signal)) return
+      }
+      if (!res.destroyed) res.end()
+    } catch (error) {
+      if (controller.signal.aborted) return
+      if (res.headersSent) {
+        res.destroy()
+        return
+      }
+      const mapped = safeError(error)
+      writeJson(res, mapped.status, mapped.body)
+    } finally {
+      controller.abort()
+      req.off('aborted', abort)
+      res.off('close', abort)
+      await iterator.return?.().catch(() => {})
+    }
+  }
+}
+
 export function registerArtemisHostRoutes(ctx, client) {
   if (!ctx?.webServer || typeof ctx.webServer.register !== 'function') {
     throw new TypeError('A Harness webServer service is required')
@@ -124,13 +204,14 @@ export function registerArtemisHostRoutes(ctx, client) {
   if (!ctx?.connection || typeof ctx.connection.requestRejection !== 'function') {
     throw new TypeError('A Harness connection trust service is required')
   }
-  if (!client || typeof client.health !== 'function' || typeof client.listDevices !== 'function' || typeof client.getStreamState !== 'function' || typeof client.getSnapshot !== 'function') {
+  if (!client || typeof client.health !== 'function' || typeof client.listDevices !== 'function' || typeof client.getStreamState !== 'function' || typeof client.getSnapshot !== 'function' || typeof client.streamSnapshots !== 'function') {
     throw new TypeError('An ARTEMIS client implementing the read-only panel contract is required')
   }
   const requestRejection = (req) => ctx.connection.requestRejection(req)
   const disposers = [
     ctx.webServer.register({ kind: 'exact', path: OVERVIEW_ROUTE, handler: createOverviewHandler(client, { requestRejection }) }),
     ctx.webServer.register({ kind: 'exact', path: SNAPSHOT_ROUTE, handler: createSnapshotHandler(client, { requestRejection }) }),
+    ctx.webServer.register({ kind: 'exact', path: LIVE_ROUTE, handler: createLiveHandler(client, { requestRejection }) }),
   ]
   return () => {
     for (const dispose of disposers.reverse()) dispose?.()

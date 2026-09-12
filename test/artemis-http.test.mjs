@@ -18,8 +18,8 @@ function json(res, value, status = 200) {
   res.end(body)
 }
 
-function pngFixture(extra = 0) {
-  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(extra, 0x41)])
+function pngFixture(extra = 0, fill = 0x41) {
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(extra, fill)])
 }
 
 function multipartFrame(frame, { contentType = 'image/png', declaredLength = frame.byteLength } = {}) {
@@ -71,6 +71,36 @@ test('snapshot extracts exactly one bounded PNG multipart frame', async () => {
     const snapshot = await new ArtemisHttpClient({ baseUrl }).getSnapshot()
     assert.equal(snapshot.mediaType, 'image/png')
     assert.deepEqual(Buffer.from(snapshot.data), frame)
+  })
+})
+
+test('live stream yields multiple validated PNG frames from one ARTEMIS response', async () => {
+  const first = pngFixture(16, 0x41)
+  const second = pngFixture(16, 0x42)
+  await withServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'multipart/x-mixed-replace; boundary=frame' })
+    const payload = Buffer.concat([multipartFrame(first), multipartFrame(second)])
+    res.write(payload.subarray(0, 37))
+    setTimeout(() => res.end(payload.subarray(37)), 5)
+  }, async (baseUrl) => {
+    const frames = []
+    for await (const frame of new ArtemisHttpClient({ baseUrl }).streamSnapshots()) {
+      frames.push(Buffer.from(frame.data))
+    }
+    assert.deepEqual(frames, [first, second])
+  })
+})
+
+test('live stream rejects a malformed later frame after yielding earlier valid data', async () => {
+  const first = pngFixture(8)
+  const invalid = Buffer.from('not-a-png')
+  await withServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'multipart/x-mixed-replace; boundary=frame' })
+    res.end(Buffer.concat([multipartFrame(first), multipartFrame(invalid)]))
+  }, async (baseUrl) => {
+    const iterator = new ArtemisHttpClient({ baseUrl }).streamSnapshots()[Symbol.asyncIterator]()
+    assert.deepEqual(Buffer.from((await iterator.next()).value.data), first)
+    await assert.rejects(iterator.next(), (error) => error.code === 'invalid-image')
   })
 })
 
