@@ -6,56 +6,35 @@ const ONE_PIXEL_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCA
 
 function sendJson(res, value, status = 200) {
   const body = JSON.stringify(value)
-  res.writeHead(status, {
-    'content-type': 'application/json',
-    'content-length': Buffer.byteLength(body),
-    'cache-control': 'no-store',
-  })
+  res.writeHead(status, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body), 'cache-control': 'no-store' })
   res.end(body)
 }
-
-function sendDeviceLiveFrame(res) {
+function frameBytes() {
   const header = Buffer.from(`--frame\r\nContent-Type: image/png\r\nContent-Length: ${ONE_PIXEL_PNG.byteLength}\r\n\r\n`)
-  res.writeHead(200, {
-    'content-type': 'multipart/x-mixed-replace; boundary=frame',
-    'cache-control': 'no-store',
-  })
-  res.end(Buffer.concat([header, ONE_PIXEL_PNG, Buffer.from('\r\n')]))
+  return Buffer.concat([header, ONE_PIXEL_PNG, Buffer.from('\r\n')])
 }
-
+function sendDeviceLiveStream(res) {
+  res.writeHead(200, { 'content-type': 'multipart/x-mixed-replace; boundary=frame', 'cache-control': 'no-store' })
+  const frame = frameBytes()
+  res.write(frame)
+  const timer = setInterval(() => {
+    if (!res.destroyed) res.write(frame)
+  }, 80)
+  res.once('close', () => clearInterval(timer))
+}
 const server = createServer((req, res) => {
-  if (req.method !== 'GET') {
-    res.writeHead(405, { allow: 'GET' })
-    res.end()
-    return
-  }
+  if (req.method !== 'GET') { res.writeHead(405, { allow: 'GET' }); res.end(); return }
   switch (req.url) {
-    case '/api/status':
-      sendJson(res, { status: 'ready' })
-      return
-    case '/api/devices':
-      sendJson(res, { devices: [{ serial: 'emulator-5554', state: 'device', model: 'Pixel_9', product: 'sdk_gphone64_x86_64', busy: false }] })
-      return
-    case '/api/stream/device-state':
-      sendJson(res, { connected: true, serial: 'emulator-5554', live_stream_url: '/api/stream/device-live' })
-      return
-    case '/api/stream/device-live':
-      sendDeviceLiveFrame(res)
-      return
-    default:
-      sendJson(res, { error: 'not-found' }, 404)
+    case '/api/status': sendJson(res, { status: 'ready' }); return
+    case '/api/devices': sendJson(res, { devices: [{ serial: 'emulator-5554', state: 'device', model: 'Pixel_9', product: 'sdk_gphone64_x86_64', busy: false }] }); return
+    case '/api/stream/device-state': sendJson(res, { connected: true, serial: 'emulator-5554', live_stream_url: '/api/stream/device-live' }); return
+    case '/api/stream/device-live': sendDeviceLiveStream(res); return
+    default: sendJson(res, { error: 'not-found' }, 404)
   }
 })
 server.listen(PORT, HOST)
-
 function shutdown() {
-  server.close((error) => {
-    if (error) {
-      console.error(error)
-      process.exitCode = 1
-    }
-  })
+  server.close((error) => { if (error) { console.error(error); process.exitCode = 1 } })
 }
-
 process.once('SIGINT', shutdown)
 process.once('SIGTERM', shutdown)

@@ -76,7 +76,6 @@ async function readJsonWithinLimit(response, endpoint, maxBytes) {
     throw new ArtemisProtocolError(`${endpoint} response exceeded the configured size limit`, { code: 'response-too-large' })
   }
   if (!response.body) throw new ArtemisProtocolError(`${endpoint} returned an empty response body`)
-
   const reader = response.body.getReader()
   const chunks = []
   let size = 0
@@ -94,7 +93,6 @@ async function readJsonWithinLimit(response, endpoint, maxBytes) {
   } finally {
     reader.releaseLock()
   }
-
   const bytes = new Uint8Array(size)
   let offset = 0
   for (const chunk of chunks) {
@@ -169,13 +167,12 @@ function hasPngSignature(bytes) {
     && PNG_SIGNATURE.every((value, index) => bytes[index] === value)
 }
 
-async function readFirstPngFrame(response, maxFrameBytes) {
+async function* readPngFrames(response, maxFrameBytes) {
   const boundary = parseMultipartBoundary(response.headers.get('content-type') ?? '')
   if (!response.body) throw new ArtemisProtocolError('/api/stream/device-live returned an empty response body')
-
   const boundaryBytes = new TextEncoder().encode(`--${boundary}\r\n`)
   const headerTerminator = Uint8Array.from([13, 10, 13, 10])
-  const maxBuffered = maxFrameBytes + MAX_MULTIPART_HEADER_BYTES + boundaryBytes.byteLength + headerTerminator.byteLength
+  const maxBuffered = maxFrameBytes + MAX_MULTIPART_HEADER_BYTES + boundaryBytes.byteLength + headerTerminator.byteLength + 2
   const reader = response.body.getReader()
   let buffer = new Uint8Array(0)
   let bodyStart = -1
@@ -183,53 +180,65 @@ async function readFirstPngFrame(response, maxFrameBytes) {
 
   try {
     while (true) {
+      let produced
+      do {
+        produced = false
+        if (bodyStart < 0) {
+          const boundaryStart = indexOfBytes(buffer, boundaryBytes)
+          if (boundaryStart >= 0) {
+            if (boundaryStart !== 0) {
+              throw new ArtemisProtocolError('ARTEMIS live stream contained an unexpected multipart preamble', { code: 'invalid-multipart' })
+            }
+            const headerStart = boundaryBytes.byteLength
+            const headerEnd = indexOfBytes(buffer, headerTerminator, headerStart)
+            if (headerEnd >= 0) {
+              const headers = parsePartHeaders(buffer.slice(headerStart, headerEnd))
+              if ((headers.get('content-type') ?? '').toLowerCase() !== 'image/png') {
+                throw new ArtemisProtocolError('ARTEMIS live frame was not PNG', { code: 'unexpected-content-type' })
+              }
+              const lengthText = headers.get('content-length')
+              if (!lengthText || !/^\d+$/.test(lengthText)) {
+                throw new ArtemisProtocolError('ARTEMIS live frame omitted a valid Content-Length', { code: 'invalid-multipart' })
+              }
+              contentLength = Number(lengthText)
+              if (!Number.isSafeInteger(contentLength) || contentLength <= 0) {
+                throw new ArtemisProtocolError('ARTEMIS live frame declared an invalid Content-Length', { code: 'invalid-multipart' })
+              }
+              if (contentLength > maxFrameBytes) {
+                throw new ArtemisProtocolError('ARTEMIS live frame exceeded the configured size limit', { code: 'frame-too-large' })
+              }
+              bodyStart = headerEnd + headerTerminator.byteLength
+            } else if (buffer.byteLength - headerStart > MAX_MULTIPART_HEADER_BYTES) {
+              throw new ArtemisProtocolError('ARTEMIS live frame headers exceeded the configured limit', { code: 'invalid-multipart' })
+            }
+          } else if (buffer.byteLength > MAX_MULTIPART_HEADER_BYTES) {
+            throw new ArtemisProtocolError('ARTEMIS live stream did not expose a bounded multipart header', { code: 'invalid-multipart' })
+          }
+        }
+
+        if (bodyStart >= 0 && buffer.byteLength >= bodyStart + contentLength + 2) {
+          const frameEnd = bodyStart + contentLength
+          if (buffer[frameEnd] !== 13 || buffer[frameEnd + 1] !== 10) {
+            throw new ArtemisProtocolError('ARTEMIS live frame omitted its trailing CRLF', { code: 'invalid-multipart' })
+          }
+          const frame = buffer.slice(bodyStart, frameEnd)
+          if (!hasPngSignature(frame)) {
+            throw new ArtemisProtocolError('ARTEMIS live frame did not contain a valid PNG signature', { code: 'invalid-image' })
+          }
+          buffer = buffer.slice(frameEnd + 2)
+          bodyStart = -1
+          contentLength = null
+          produced = true
+          yield Object.freeze({ mediaType: 'image/png', data: frame, bytes: frame.byteLength })
+        }
+      } while (produced)
+
       const { value, done } = await reader.read()
       if (done) {
+        if (buffer.byteLength === 0) return
         throw new ArtemisProtocolError('ARTEMIS live stream ended before a complete frame arrived', { code: 'incomplete-frame' })
       }
       buffer = appendBytes(buffer, value, maxBuffered)
-
-      if (bodyStart < 0) {
-        const boundaryStart = indexOfBytes(buffer, boundaryBytes)
-        if (boundaryStart < 0) {
-          if (buffer.byteLength > MAX_MULTIPART_HEADER_BYTES) {
-            throw new ArtemisProtocolError('ARTEMIS live stream did not expose a bounded multipart header', { code: 'invalid-multipart' })
-          }
-          continue
-        }
-        const headerStart = boundaryStart + boundaryBytes.byteLength
-        const headerEnd = indexOfBytes(buffer, headerTerminator, headerStart)
-        if (headerEnd < 0) {
-          if (buffer.byteLength - headerStart > MAX_MULTIPART_HEADER_BYTES) {
-            throw new ArtemisProtocolError('ARTEMIS live frame headers exceeded the configured limit', { code: 'invalid-multipart' })
-          }
-          continue
-        }
-        const headers = parsePartHeaders(buffer.slice(headerStart, headerEnd))
-        if ((headers.get('content-type') ?? '').toLowerCase() !== 'image/png') {
-          throw new ArtemisProtocolError('ARTEMIS live frame was not PNG', { code: 'unexpected-content-type' })
-        }
-        const lengthText = headers.get('content-length')
-        if (!lengthText || !/^\d+$/.test(lengthText)) {
-          throw new ArtemisProtocolError('ARTEMIS live frame omitted a valid Content-Length', { code: 'invalid-multipart' })
-        }
-        contentLength = Number(lengthText)
-        if (!Number.isSafeInteger(contentLength) || contentLength <= 0) {
-          throw new ArtemisProtocolError('ARTEMIS live frame declared an invalid Content-Length', { code: 'invalid-multipart' })
-        }
-        if (contentLength > maxFrameBytes) {
-          throw new ArtemisProtocolError('ARTEMIS live frame exceeded the configured size limit', { code: 'frame-too-large' })
-        }
-        bodyStart = headerEnd + headerTerminator.byteLength
-      }
-
-      if (buffer.byteLength >= bodyStart + contentLength) {
-        const frame = buffer.slice(bodyStart, bodyStart + contentLength)
-        if (!hasPngSignature(frame)) {
-          throw new ArtemisProtocolError('ARTEMIS live frame did not contain a valid PNG signature', { code: 'invalid-image' })
-        }
-        return Object.freeze({ mediaType: 'image/png', data: frame, bytes: frame.byteLength })
-      }
     }
   } finally {
     await reader.cancel().catch(() => {})
@@ -306,15 +315,50 @@ export class ArtemisHttpClient {
     return Object.freeze({ connected: payload.connected, serial, liveStreamPath })
   }
 
-  async getSnapshot() {
-    const response = await this.#request('/api/stream/device-live', {
-      accept: 'multipart/x-mixed-replace',
-      timeoutMs: this.snapshotTimeoutMs,
-    })
+  async *streamSnapshots({ signal } = {}) {
+    const controller = new AbortController()
+    const forwardAbort = () => controller.abort(signal?.reason)
+    if (signal?.aborted) controller.abort(signal.reason)
+    else signal?.addEventListener('abort', forwardAbort, { once: true })
+    const connectTimer = setTimeout(() => controller.abort(), this.snapshotTimeoutMs)
+    let response
+    try {
+      response = await this.fetchImpl(new URL('/api/stream/device-live', this.baseUrl), {
+        method: 'GET',
+        redirect: 'error',
+        signal: controller.signal,
+        headers: { accept: 'multipart/x-mixed-replace' },
+      })
+    } catch (cause) {
+      throw new ArtemisProtocolError('ARTEMIS request failed for /api/stream/device-live', { code: 'unavailable', cause })
+    } finally {
+      clearTimeout(connectTimer)
+    }
     if (!response.ok) {
       throw new ArtemisProtocolError(`ARTEMIS returned HTTP ${response.status} for /api/stream/device-live`, { code: 'http-error' })
     }
-    return readFirstPngFrame(response, this.maxFrameBytes)
+    try {
+      yield* readPngFrames(response, this.maxFrameBytes)
+    } finally {
+      controller.abort()
+      signal?.removeEventListener('abort', forwardAbort)
+    }
+  }
+
+  async getSnapshot() {
+    const iterator = this.streamSnapshots({ signal: AbortSignal.timeout(this.snapshotTimeoutMs) })[Symbol.asyncIterator]()
+    try {
+      const first = await iterator.next()
+      if (first.done) {
+        throw new ArtemisProtocolError('ARTEMIS live stream ended before a frame arrived', { code: 'incomplete-frame' })
+      }
+      return first.value
+    } catch (cause) {
+      if (cause instanceof ArtemisProtocolError) throw cause
+      throw new ArtemisProtocolError('ARTEMIS snapshot request failed', { code: 'unavailable', cause })
+    } finally {
+      await iterator.return?.()
+    }
   }
 }
 
