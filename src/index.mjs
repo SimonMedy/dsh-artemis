@@ -1,5 +1,6 @@
 import { registerArtemisEvidenceRoute } from './host/artemis-evidence.mjs'
 import { ArtemisHttpClient } from './host/artemis-http.mjs'
+import { withBrowserResponseSecurity } from './host/browser-response-security.mjs'
 import { registerArtemisHostRoutes } from './host/harness-routes.mjs'
 import { inspectArtemisSetup } from './integration/artemis-setup-status.mjs'
 
@@ -17,8 +18,12 @@ export function apply(ctx) {
   const setupStatus = inspectArtemisSetup()
   ctx.effect(
     () => {
-      const disposeHostRoutes = registerArtemisHostRoutes(ctx, client, { setupStatus })
-      const disposeEvidence = registerArtemisEvidenceRoute(ctx, client)
+      const routeContext = {
+        webServer: withBrowserResponseSecurity(ctx.webServer),
+        connection: ctx.connection,
+      }
+      const disposeHostRoutes = registerArtemisHostRoutes(routeContext, client, { setupStatus })
+      const disposeEvidence = registerArtemisEvidenceRoute(routeContext, client)
       return () => {
         disposeEvidence?.()
         disposeHostRoutes?.()
