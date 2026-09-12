@@ -13,9 +13,9 @@ Last updated: 2026-09-12
 | 0 — investigation & bootstrap | **DONE** | Pinned upstreams, secure adapter, trust fence, package installation, MCP config and rules skill merged |
 | 1 — minimal native panel | **DONE** | Native Android sidebar + deterministic real Harness/Chromium E2E merged through PR #15 |
 | 1.5 — explicit screenshot observation | **DONE** | Bounded snapshot route, ephemeral preview, reproducible client build and real Harness/Chromium capture merged through PR #17 |
-| 2 — live human screen | **ACTIVE** | Validated multi-frame Host transport + explicit Start/Stop viewer + bounded reconnect are under validation on `gpt/phase-2-live-viewer` |
-| 3 — bounded device controls | **NEXT** | Verify exact upstream contracts for Back/Home/Recents/Rotate before exposing any action |
-| 4 — tasks, traces & visual QA | **PLANNED** | Surface ARTEMIS task/trace evidence and explicit visual checkpoints |
+| 2 — live human screen | **DONE** | Bounded multi-frame transport, explicit Start/Stop viewer, reconnect budget and packaged Harness/Chromium E2E merged through PR #18 |
+| 3 — bounded device controls | **BLOCKED** | Pinned ARTEMIS has canonical Back/Home/Recents actions only in a separate broad action/ADB surface; no narrow configured-MCP/Admin transport and no canonical Rotate contract |
+| 4 — tasks, traces & visual QA | **ACTIVE** | Current branch adds bounded read-only current-task/latest-step/trace metadata with full Harness/Chromium privacy assertions |
 | 5 — installation & agent experience | **PARTIAL** | MCP config + rules skill merged; setup/status UX remains |
 | 6 — autonomous mobile computer-use | **PLANNED** | Build bounded code→build→ARTEMIS→observe→verify→fix workflows |
 | 7 — compatibility & polish | **ONGOING** | Keep supported revisions backed by reproducible CI evidence |
@@ -54,55 +54,65 @@ Model handoff remains intentionally gated:
 
 ## Phase 2 — live human screen
 
-**Status: ACTIVE**
+**Status: DONE — merged through PR #18**
 
-Current batch:
-- [x] Refactor snapshot/live onto one frame-validation pipeline.
-- [x] Parse and validate every multipart PNG frame independently.
-- [x] Add same-origin `GET /dsh-artemis/v1/live` behind the Harness trust fence.
-- [x] Normalize the downstream multipart boundary rather than transparently proxying bytes.
-- [x] Respect Node backpressure and abort upstream on browser disconnect.
-- [x] Add explicit **Start live** / **Stop live** controls.
-- [x] Disable snapshot capture while live is active.
-- [x] Stop live when the active device/stream disappears.
-- [x] Cap reconnect at four retries with bounded delays.
-- [x] Keep live frames human-facing, ephemeral and outside model context.
-- [x] Fake ARTEMIS can hold an open multipart stream and emit repeated frames.
-- [x] Browser E2E scenario includes Start→visible 1×1 live frame→Stop→snapshot preserved.
-
-Exit criteria before `DONE`:
-- [ ] Repository CI green on the exact Phase 2 PR head.
-- [ ] Generated client bundle, package install and Cordis composition green against pinned Harness.
-- [ ] Real Harness + Chromium E2E proves Start/Stop live against the packaged generated bundle.
-- [ ] No browser-direct ARTEMIS access, silent persistence or model-context insertion.
+Delivered:
+- [x] Snapshot/live share one frame-validation pipeline.
+- [x] Every multipart PNG frame is parsed and validated independently.
+- [x] Same-origin `GET /dsh-artemis/v1/live` is behind the Harness trust fence.
+- [x] The downstream multipart boundary is normalized instead of transparently proxying bytes.
+- [x] Node backpressure is respected and upstream is aborted on browser disconnect.
+- [x] Explicit **Start live** / **Stop live** controls.
+- [x] Snapshot capture is disabled while live is active.
+- [x] Live stops when the active device/stream disappears.
+- [x] Reconnect is capped at four retries with bounded delays.
+- [x] Live frames remain human-facing, ephemeral and outside model context.
+- [x] Fake ARTEMIS holds an open multipart stream and emits repeated frames.
+- [x] Real packaged Harness/Chromium E2E proves Start→visible frame→Stop→snapshot preserved.
+- [x] Repository CI and Harness compatibility were green on the exact PR #18 head before merge.
 
 See [`live-viewer.md`](live-viewer.md) for transport/lifecycle guarantees.
 
 ## Phase 3 — bounded device controls
 
-**Status: NEXT**
+**Status: BLOCKED — safe upstream contract required**
 
-Candidate controls: Back, Home, Recents and Rotate.
+The pinned ARTEMIS audit found canonical `press_key` mappings for Back (`back`), Home (`home`) and Recents (`app_switch`), but those actions are not exposed by the configured `python -m mcp_server` surface. They live in a separate action/ADB surface with materially broader authority. The pinned Admin HTTP routers provide no narrow key-control endpoint, and the canonical action contract contains no Rotate operation.
 
-Before implementation:
-- [ ] Inspect and pin the exact ARTEMIS contract for each operation.
-- [ ] Prefer existing narrow ARTEMIS APIs over ADB/shell access.
-- [ ] Define per-action busy/error semantics and browser contract.
-- [ ] Keep browser input unable to supply arbitrary command/path/URL values.
+We will not bypass that gap with generic ADB/shell, arbitrary key codes, a second broad agent-facing MCP server, natural-language `mobile_run_task` prompts, or private ARTEMIS internals.
 
-Exit criteria:
-- [ ] Every exposed control maps to an inspected allow-listed upstream operation.
-- [ ] Unit/contract tests cover errors and trust boundaries.
+See [`device-controls.md`](device-controls.md) for the audited contract, rejected shortcuts and unblock criteria.
+
+Exit criteria remain:
+- [ ] Every exposed control maps to an inspected allow-listed supported upstream operation.
+- [ ] Browser input cannot supply arbitrary command/path/package/URL/keycode values.
+- [ ] Unit/contract tests cover per-action errors and trust boundaries.
 - [ ] Real Harness/Chromium E2E covers the visible controls.
 
 ## Phase 4 — tasks, traces and visual QA
 
-**Status: PLANNED**
+**Status: ACTIVE**
 
-- Native current-task status and result/failure summary.
-- Trace/replay entry points using supported ARTEMIS APIs.
-- Reuse ARTEMIS evidence instead of creating a parallel screenshot archive.
-- Keep visual verification at explicit bounded checkpoints.
+Current bounded evidence batch:
+- [x] Same-origin read-only `/dsh-artemis/v1/evidence` route behind Harness connection trust.
+- [x] Server derives the active ARTEMIS session from `/api/status`; browser cannot provide a session or trace identifier.
+- [x] Expose only current task status/goal/counts plus latest step action and at most eight trace name/type/status records.
+- [x] Bound upstream JSON bytes, string lengths and identifier syntax.
+- [x] Exclude task bodies, model metadata, action payloads, screenshots, trace payloads and arbitrary upstream JSON.
+- [x] Client independently validates the versioned project DTO and polls with same-origin/no-store semantics.
+- [x] Deterministic fixture includes deliberate secrets so E2E can prove they do not reach rendered evidence.
+
+Exit criteria for this batch:
+- [ ] Repository CI green on the exact Phase 4 PR head.
+- [ ] Generated client bundle/package/Cordis composition green against pinned Harness.
+- [ ] Real Harness/Chromium E2E proves task evidence and secret non-disclosure through the packaged generated bundle.
+- [ ] Merge to `main` before marking this batch complete.
+
+Next Phase 4 lots:
+- [ ] Add read-only trace/replay drill-down only through validated server-derived identifiers.
+- [ ] Keep replay execution opt-in and separately policy-gated; do not expose a generic replay trigger yet.
+- [ ] Reuse ARTEMIS evidence instead of creating a parallel screenshot archive.
+- [ ] Add explicit bounded visual QA checkpoints where behavior requires visual evidence.
 
 ## Phase 5 — installation and agent experience
 
@@ -140,15 +150,13 @@ Remaining:
 ## Current critical path
 
 ```text
-Phase 2 PR: generated bundle + packaged Harness + Chromium Start/Stop live
+Phase 2 merged and DONE
         ↓
-merge Phase 2 and mark DONE
+Phase 3 safe transport blocked on upstream narrow control contract
+        ↓ (work can continue independently)
+Phase 4 bounded task/latest-step/trace evidence
         ↓
-inspect exact ARTEMIS Back/Home/Recents/Rotate contracts
-        ↓
-Phase 3 bounded controls
-        ↓
-tasks/traces + explicit visual QA checkpoints
+read-only trace/replay drill-down + explicit visual QA checkpoints
         ↓
 public Session-owned image handoff (when Harness exposes one)
         ↓

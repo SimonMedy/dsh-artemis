@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { evidenceEndpoint, fetchEvidence, parseEvidence } from '../src/client/evidence.mjs'
+import { evidenceEndpoint, fetchEvidence, parseEvidence } from '../src/client/evidence-data.mjs'
 
 const locationLike = { protocol: 'http:', origin: 'http://127.0.0.1:3080' }
 const fixture = {
