@@ -1,11 +1,5 @@
 import { ArtemisProtocolError } from './artemis-http.mjs'
-
-const MAX_DEVICES = 32
-const MAX_STATUS_CHARS = 64
-const MAX_SERIAL_CHARS = 256
-const MAX_STATE_CHARS = 64
-const MAX_MODEL_CHARS = 256
-const MAX_PRODUCT_CHARS = 256
+import { PANEL_METADATA_LIMITS } from '../shared/panel-metadata-limits.mjs'
 
 function protocolError(label) {
   return new ArtemisProtocolError(`${label} exceeded the browser panel metadata contract`, {
@@ -34,10 +28,10 @@ function boundedDevice(value) {
   }
   if (typeof value.busy !== 'boolean') throw protocolError('device.busy')
   return Object.freeze({
-    serial: boundedString(value.serial, MAX_SERIAL_CHARS, 'device.serial'),
-    state: boundedString(value.state, MAX_STATE_CHARS, 'device.state').toLowerCase(),
-    model: boundedString(value.model, MAX_MODEL_CHARS, 'device.model', { nullable: true }),
-    product: boundedString(value.product, MAX_PRODUCT_CHARS, 'device.product', { nullable: true }),
+    serial: boundedString(value.serial, PANEL_METADATA_LIMITS.maxSerialChars, 'device.serial'),
+    state: boundedString(value.state, PANEL_METADATA_LIMITS.maxStateChars, 'device.state').toLowerCase(),
+    model: boundedString(value.model, PANEL_METADATA_LIMITS.maxModelChars, 'device.model', { nullable: true }),
+    product: boundedString(value.product, PANEL_METADATA_LIMITS.maxProductChars, 'device.product', { nullable: true }),
     busy: value.busy,
   })
 }
@@ -58,14 +52,14 @@ export function createBoundedPanelClient(client) {
       if (!value || typeof value !== 'object' || Array.isArray(value)) throw protocolError('health')
       return Object.freeze({
         reachable: Boolean(value.reachable),
-        status: boundedString(value.status, MAX_STATUS_CHARS, 'health.status'),
+        status: boundedString(value.status, PANEL_METADATA_LIMITS.maxStatusChars, 'health.status'),
       })
     },
 
     async listDevices() {
       const values = await client.listDevices()
       if (!Array.isArray(values)) throw protocolError('devices')
-      if (values.length > MAX_DEVICES) throw protocolError('devices')
+      if (values.length > PANEL_METADATA_LIMITS.maxDevices) throw protocolError('devices')
       return Object.freeze(values.map(boundedDevice))
     },
 
@@ -75,7 +69,7 @@ export function createBoundedPanelClient(client) {
       if (typeof value.connected !== 'boolean') throw protocolError('stream.connected')
       return Object.freeze({
         connected: value.connected,
-        serial: boundedString(value.serial, MAX_SERIAL_CHARS, 'stream.serial', { nullable: true }),
+        serial: boundedString(value.serial, PANEL_METADATA_LIMITS.maxSerialChars, 'stream.serial', { nullable: true }),
       })
     },
 
@@ -89,11 +83,4 @@ export function createBoundedPanelClient(client) {
   })
 }
 
-export const panelMetadataLimits = Object.freeze({
-  maxDevices: MAX_DEVICES,
-  maxStatusChars: MAX_STATUS_CHARS,
-  maxSerialChars: MAX_SERIAL_CHARS,
-  maxStateChars: MAX_STATE_CHARS,
-  maxModelChars: MAX_MODEL_CHARS,
-  maxProductChars: MAX_PRODUCT_CHARS,
-})
+export const panelMetadataLimits = PANEL_METADATA_LIMITS
