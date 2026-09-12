@@ -19,7 +19,7 @@ test('package manifest advertises Host bundle and baseline-aware Web client face
 test('bundle patch inserts the Host plugin by package name', async () => {
   const patch = await readFile('cordis.patch.yml', 'utf8')
   assert.match(patch, /id:\s*dsh-artemis/)
-  assert.match(patch, /name:\s*['"]dsh-artemis['"]/)
+  assert.match(patch, /name:\s*['"]dsh-artemis['"]/) 
 })
 
 test('Host face effect-owns all registered read-only routes', () => {
@@ -41,9 +41,11 @@ test('Host face effect-owns all registered read-only routes', () => {
     '/dsh-artemis/v1/snapshot',
     '/dsh-artemis/v1/live',
     '/dsh-artemis/v1/evidence',
+    '/dsh-artemis/v1/evidence/latest-traces',
   ])
   dispose()
   assert.deepEqual(disposed, [
+    '/dsh-artemis/v1/evidence/latest-traces',
     '/dsh-artemis/v1/evidence',
     '/dsh-artemis/v1/live',
     '/dsh-artemis/v1/snapshot',

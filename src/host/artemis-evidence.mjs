@@ -1,5 +1,5 @@
 import { ArtemisProtocolError } from './artemis-http.mjs'
-import { DSH_ARTEMIS_PROTOCOL_VERSION, EVIDENCE_ROUTE } from '../shared/protocol.mjs'
+import { DSH_ARTEMIS_PROTOCOL_VERSION, EVIDENCE_ROUTE, TRACE_EVIDENCE_ROUTE } from '../shared/protocol.mjs'
 
 const MAX_GOAL_CHARS = 512
 const MAX_ACTION_CHARS = 160
@@ -7,7 +7,10 @@ const MAX_TRACE_NAME_CHARS = 80
 const MAX_TRACE_TYPE_CHARS = 40
 const MAX_TRACE_STATUS_CHARS = 40
 const MAX_TRACES = 8
-const SESSION_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/
+const MAX_TRACE_TREE_NODES = 64
+const MAX_TRACE_TREE_DEPTH = 6
+const MAX_TRACE_CHILDREN = 16
+const IDENTIFIER_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/
 const TASK_STATES = new Set(['idle', 'running', 'paused'])
 
 function expectObject(value, label) {
@@ -25,13 +28,13 @@ function boundedOptionalString(value, maxChars, label) {
   return text.slice(0, maxChars)
 }
 
-function normalizeSessionId(value) {
-  const sessionId = boundedOptionalString(value, 128, 'session_id')
-  if (sessionId === null) return null
-  if (!SESSION_ID_PATTERN.test(sessionId)) {
-    throw new ArtemisProtocolError('ARTEMIS returned an invalid session_id', { code: 'invalid-evidence' })
+function normalizeIdentifier(value, label) {
+  const identifier = boundedOptionalString(value, 128, label)
+  if (identifier === null) return null
+  if (!IDENTIFIER_PATTERN.test(identifier)) {
+    throw new ArtemisProtocolError(`ARTEMIS returned an invalid ${label}`, { code: 'invalid-evidence' })
   }
-  return sessionId
+  return identifier
 }
 
 function arrayCount(value, label) {
@@ -56,7 +59,6 @@ async function readJsonWithinLimit(response, endpoint, maxBytes) {
     }
   }
   if (!response.body) throw new ArtemisProtocolError(`${endpoint} returned an empty response body`, { code: 'invalid-evidence' })
-
   const reader = response.body.getReader()
   const chunks = []
   let size = 0
@@ -74,7 +76,6 @@ async function readJsonWithinLimit(response, endpoint, maxBytes) {
   } finally {
     reader.releaseLock()
   }
-
   const bytes = new Uint8Array(size)
   let offset = 0
   for (const chunk of chunks) {
@@ -120,7 +121,7 @@ export async function getTaskStatus(client) {
   return Object.freeze({
     status: TASK_STATES.has(normalizedStatus) ? normalizedStatus : 'unknown',
     goal: boundedOptionalString(payload.goal, MAX_GOAL_CHARS, 'goal'),
-    sessionId: normalizeSessionId(payload.session_id),
+    sessionId: normalizeIdentifier(payload.session_id, 'session_id'),
     queueCount: arrayCount(payload.queue, 'queue'),
     activeCount: arrayCount(payload.active_tasks, 'active_tasks'),
     backgroundCount: arrayCount(payload.background_tasks, 'background_tasks'),
@@ -164,8 +165,8 @@ function normalizeStep(value) {
   })
 }
 
-export async function getSessionSteps(client, sessionId) {
-  if (!SESSION_ID_PATTERN.test(sessionId)) throw new TypeError('sessionId must be a validated ARTEMIS session id')
+async function getRawSessionSteps(client, sessionId) {
+  if (!IDENTIFIER_PATTERN.test(sessionId)) throw new TypeError('sessionId must be a validated ARTEMIS session id')
   let payload
   try {
     payload = await getJson(client, `/api/sessions/${encodeURIComponent(sessionId)}/steps`)
@@ -174,23 +175,36 @@ export async function getSessionSteps(client, sessionId) {
     throw error
   }
   if (!Array.isArray(payload)) throw new ArtemisProtocolError('ARTEMIS steps response must be an array', { code: 'invalid-evidence' })
+  return Object.freeze(payload)
+}
+
+export async function getSessionSteps(client, sessionId) {
+  const payload = await getRawSessionSteps(client, sessionId)
   return Object.freeze(payload.map(normalizeStep))
 }
 
-function selectLatestStep(steps) {
-  if (steps.length === 0) return null
-  let latest = steps[0]
+function selectLatestByStepNumber(values, normalize) {
+  if (values.length === 0) return null
+  let latest = values[0]
+  let latestNormalized = normalize(latest)
   let latestIndex = 0
-  for (let index = 1; index < steps.length; index += 1) {
-    const candidate = steps[index]
-    const currentNumber = latest.stepNumber
-    const candidateNumber = candidate.stepNumber
+  for (let index = 1; index < values.length; index += 1) {
+    const candidate = values[index]
+    const candidateNormalized = normalize(candidate)
+    const currentNumber = latestNormalized.stepNumber
+    const candidateNumber = candidateNormalized.stepNumber
     if ((candidateNumber !== null && (currentNumber === null || candidateNumber > currentNumber)) || (candidateNumber === currentNumber && index > latestIndex)) {
       latest = candidate
+      latestNormalized = candidateNormalized
       latestIndex = index
     }
   }
-  return latest
+  return { raw: latest, normalized: latestNormalized }
+}
+
+function selectLatestStep(steps) {
+  const selected = selectLatestByStepNumber(steps, (step) => step)
+  return selected?.normalized ?? null
 }
 
 export async function buildEvidence(client) {
@@ -200,6 +214,64 @@ export async function buildEvidence(client) {
     version: DSH_ARTEMIS_PROTOCOL_VERSION,
     task,
     latestStep: selectLatestStep(steps),
+  })
+}
+
+function sanitizeTraceTree(value) {
+  if (!Array.isArray(value)) throw new ArtemisProtocolError('ARTEMIS trace tree must be an array', { code: 'invalid-evidence' })
+  let nodeCount = 0
+  let truncated = false
+  function walk(nodes, depth) {
+    const output = []
+    for (let index = 0; index < nodes.length; index += 1) {
+      if (output.length >= MAX_TRACE_CHILDREN || nodeCount >= MAX_TRACE_TREE_NODES) {
+        truncated = true
+        break
+      }
+      const trace = expectObject(nodes[index], 'trace tree node')
+      const rawChildren = trace.children ?? []
+      if (!Array.isArray(rawChildren)) throw new ArtemisProtocolError('trace.children must be an array', { code: 'invalid-evidence' })
+      nodeCount += 1
+      let children = Object.freeze([])
+      if (rawChildren.length > 0) {
+        if (depth >= MAX_TRACE_TREE_DEPTH) truncated = true
+        else children = walk(rawChildren, depth + 1)
+      }
+      output.push(Object.freeze({
+        name: boundedOptionalString(trace.name, MAX_TRACE_NAME_CHARS, 'trace.name') ?? 'trace',
+        type: boundedOptionalString(trace.type, MAX_TRACE_TYPE_CHARS, 'trace.type'),
+        status: boundedOptionalString(trace.status, MAX_TRACE_STATUS_CHARS, 'trace.status'),
+        children,
+      }))
+    }
+    return Object.freeze(output)
+  }
+  const traceTree = walk(value, 1)
+  return Object.freeze({ traceTree, nodeCount, truncated })
+}
+
+export async function buildTraceEvidence(client) {
+  const task = await getTaskStatus(client)
+  if (!task.sessionId) {
+    return Object.freeze({ version: DSH_ARTEMIS_PROTOCOL_VERSION, step: null, truncated: false })
+  }
+  const rawSteps = await getRawSessionSteps(client, task.sessionId)
+  const selected = selectLatestByStepNumber(rawSteps, normalizeStep)
+  if (!selected) return Object.freeze({ version: DSH_ARTEMIS_PROTOCOL_VERSION, step: null, truncated: false })
+  const step = expectObject(selected.raw, 'step')
+  const stepId = normalizeIdentifier(step.step_id, 'step_id')
+  if (!stepId) throw new ArtemisProtocolError('Latest ARTEMIS step omitted step_id', { code: 'invalid-evidence' })
+  const rawTraceTree = await getJson(client, `/api/steps/${encodeURIComponent(stepId)}/traces`)
+  const sanitized = sanitizeTraceTree(rawTraceTree)
+  return Object.freeze({
+    version: DSH_ARTEMIS_PROTOCOL_VERSION,
+    step: Object.freeze({
+      stepNumber: selected.normalized.stepNumber,
+      action: selected.normalized.action,
+      nodeCount: sanitized.nodeCount,
+      traceTree: sanitized.traceTree,
+    }),
+    truncated: sanitized.truncated,
   })
 }
 
@@ -226,17 +298,17 @@ function rejectUntrustedRequest(req, res, requestRejection) {
   return true
 }
 
-function mapError(error) {
+function mapError(error, noun = 'task evidence') {
   if (error instanceof ArtemisProtocolError) {
     if (error.code === 'unavailable') {
       return { status: 503, body: { error: { code: 'artemis-unavailable', message: 'ARTEMIS is unavailable' } } }
     }
-    return { status: 502, body: { error: { code: 'artemis-protocol-error', message: 'ARTEMIS returned invalid task evidence' } } }
+    return { status: 502, body: { error: { code: 'artemis-protocol-error', message: `ARTEMIS returned invalid ${noun}` } } }
   }
   return { status: 500, body: { error: { code: 'internal-error', message: 'Internal dsh-artemis error' } } }
 }
 
-export function createEvidenceHandler(client, { requestRejection } = {}) {
+function createReadOnlyJsonHandler(client, build, { requestRejection, queryMessage, errorNoun } = {}) {
   return async (req, res) => {
     if (rejectUntrustedRequest(req, res, requestRejection)) return
     if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -244,31 +316,64 @@ export function createEvidenceHandler(client, { requestRejection } = {}) {
       return
     }
     if (typeof req.url === 'string' && req.url.includes('?')) {
-      writeJson(res, 400, { error: { code: 'invalid-request', message: 'Evidence route accepts no query parameters' } }, { head: req.method === 'HEAD' })
+      writeJson(res, 400, { error: { code: 'invalid-request', message: queryMessage } }, { head: req.method === 'HEAD' })
       return
     }
     try {
-      writeJson(res, 200, await buildEvidence(client), { head: req.method === 'HEAD' })
+      writeJson(res, 200, await build(client), { head: req.method === 'HEAD' })
     } catch (error) {
-      const mapped = mapError(error)
+      const mapped = mapError(error, errorNoun)
       writeJson(res, mapped.status, mapped.body, { head: req.method === 'HEAD' })
     }
   }
+}
+
+export function createEvidenceHandler(client, { requestRejection } = {}) {
+  return createReadOnlyJsonHandler(client, buildEvidence, {
+    requestRejection,
+    queryMessage: 'Evidence route accepts no query parameters',
+    errorNoun: 'task evidence',
+  })
+}
+
+export function createTraceEvidenceHandler(client, { requestRejection } = {}) {
+  return createReadOnlyJsonHandler(client, buildTraceEvidence, {
+    requestRejection,
+    queryMessage: 'Trace evidence route accepts no query parameters',
+    errorNoun: 'trace evidence',
+  })
 }
 
 export function registerArtemisEvidenceRoute(ctx, client) {
   if (!ctx?.webServer || typeof ctx.webServer.register !== 'function') throw new TypeError('A Harness webServer service is required')
   if (!ctx?.connection || typeof ctx.connection.requestRejection !== 'function') throw new TypeError('A Harness connection trust service is required')
   const requestRejection = (req) => ctx.connection.requestRejection(req)
-  return ctx.webServer.register({
+  const disposeEvidence = ctx.webServer.register({
     kind: 'exact',
     path: EVIDENCE_ROUTE,
     handler: createEvidenceHandler(client, { requestRejection }),
   })
+  try {
+    const disposeTraceEvidence = ctx.webServer.register({
+      kind: 'exact',
+      path: TRACE_EVIDENCE_ROUTE,
+      handler: createTraceEvidenceHandler(client, { requestRejection }),
+    })
+    return () => {
+      disposeTraceEvidence?.()
+      disposeEvidence?.()
+    }
+  } catch (error) {
+    disposeEvidence?.()
+    throw error
+  }
 }
 
 export const evidenceLimits = Object.freeze({
   maxGoalChars: MAX_GOAL_CHARS,
   maxActionChars: MAX_ACTION_CHARS,
   maxTraces: MAX_TRACES,
+  maxTraceTreeNodes: MAX_TRACE_TREE_NODES,
+  maxTraceTreeDepth: MAX_TRACE_TREE_DEPTH,
+  maxTraceChildren: MAX_TRACE_CHILDREN,
 })
