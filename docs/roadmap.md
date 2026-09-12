@@ -1,165 +1,108 @@
 # Roadmap
 
-The product direction is described in [`product-vision.md`](product-vision.md). This roadmap is the execution tracker: it should answer **what is done, what is active, what is next, and what blocks release**.
+The product direction is described in [`product-vision.md`](product-vision.md). This file tracks execution status and exit criteria.
 
-> **Status rule:** update this file whenever a PR changes a phase materially. A phase is only marked `DONE` when its exit criteria are satisfied on `main`. Experimental work on a preparation branch does not make a phase complete.
-
-## Current project status
+> A phase is `DONE` only when its exit criteria are satisfied on `main`. Work on a branch is `ACTIVE`, not complete.
 
 Last updated: 2026-09-12
 
-| Phase | Status | What is already on `main` | Active / next gate |
-| --- | --- | --- | --- |
-| 0 — investigation & bootstrap | **DONE** | Package/bootstrap, pinned upstreams, security/architecture/maintainability docs, secure ARTEMIS adapter, trust fence, overview route, MCP config generator, rules skill, compatibility CI | Keep pins and evidence current |
-| 1 — minimal native panel | **DONE** | Native Android right-sidebar panel, packaged client bundle, Ready/Offline/Busy/device/stream state, refresh/polling, deterministic real-Harness Chromium E2E | Maintain compatibility evidence as the pinned Harness evolves |
-| 1.5 — explicit screenshot observation | **NEXT** | ARTEMIS multipart screenshot contract, Harness attachment/model capability contracts and safe ephemeral snapshot design have been inspected | Implement the bounded ephemeral snapshot/preview path on a fresh branch from current `main`; do not persist orphan images or invent a private Session handoff |
-| 2 — live human screen | **PLANNED** | ARTEMIS public multipart `device-live` stream contract verified | Add live viewer only after the explicit one-frame path is stable |
-| 3 — bounded device controls | **PLANNED** | Security policy and narrow-operation requirement defined | Verify exact upstream contracts for Back/Home/Recents/Rotate |
-| 4 — tasks, traces & visual QA | **PLANNED** | ARTEMIS task/trace MCP surface and screenshot evidence behavior inspected | Surface task/trace evidence and bounded visual checkpoints |
-| 5 — installation & agent experience | **PARTIAL** | MCP config generator + rules-skill adapter merged | Unify setup/status UX and capability-aware affordances |
-| 6 — autonomous mobile computer-use | **PLANNED** | Product loop, hybrid testing policy and safety constraints documented | Build bounded code→build→ARTEMIS→observe→verify→fix workflows |
-| 7 — compatibility & polish | **ONGOING** | Pinned Harness compatibility CI, real browser E2E and docs-as-code | Broaden supported revisions only from tested evidence |
+## Status
 
-### Recently completed milestones
+| Phase | Status | Evidence / next gate |
+| --- | --- | --- |
+| 0 — investigation & bootstrap | **DONE** | Pinned upstreams, secure adapter, trust fence, package installation, MCP config and rules skill merged |
+| 1 — minimal native panel | **DONE** | Native Android sidebar + deterministic real Harness/Chromium E2E merged through PR #15 |
+| 1.5 — explicit screenshot observation | **DONE** | Bounded snapshot route, ephemeral preview, reproducible client build and real Harness/Chromium capture merged through PR #17 |
+| 2 — live human screen | **ACTIVE** | Validated multi-frame Host transport + explicit Start/Stop viewer + bounded reconnect are under validation on `gpt/phase-2-live-viewer` |
+| 3 — bounded device controls | **NEXT** | Verify exact upstream contracts for Back/Home/Recents/Rotate before exposing any action |
+| 4 — tasks, traces & visual QA | **PLANNED** | Surface ARTEMIS task/trace evidence and explicit visual checkpoints |
+| 5 — installation & agent experience | **PARTIAL** | MCP config + rules skill merged; setup/status UX remains |
+| 6 — autonomous mobile computer-use | **PLANNED** | Build bounded code→build→ARTEMIS→observe→verify→fix workflows |
+| 7 — compatibility & polish | **ONGOING** | Keep supported revisions backed by reproducible CI evidence |
 
-- Secure ARTEMIS loopback HTTP adapter with strict URL, redirect, content-type, timeout and body-size policies.
-- Harness browser trust fence applied before every `dsh-artemis` browser route touches ARTEMIS.
-- `GET|HEAD /dsh-artemis/v1/overview` with stable project-owned DTOs.
-- Real package installation validated against the pinned Harness build/profile.
-- ARTEMIS stdio MCP configuration generation and native `artemis-mobile-testing` runtime skill.
-- Native Android sidebar panel merged through PR #15 after repository CI and full pinned Harness + Chromium E2E passed on the exact head.
-- Deterministic browser E2E uses public Harness Workspace/Session/settings/credentials APIs and loopback fake ARTEMIS/DeepSeek services; it does not mutate private stores or contact an external model endpoint.
-- Hybrid testing strategy: deterministic tests first; ARTEMIS + multimodal verification where real-device, adaptive or visual behavior matters.
+## Completed foundations
 
-### Current critical path
-
-```text
-merge/reconcile PR #16 documentation
-        ↓
-Phase 1.5: bounded one-frame ARTEMIS snapshot
-        ↓
-manual human preview in native Android panel
-        ↓
-real Harness + Chromium snapshot E2E
-        ↓
-verify a public Session-owned image handoff before any model injection
-        ↓
-capability-driven vision integration when a supported seam exists
-```
-
-## Phase 0 — investigation and bootstrap
-
-**Status: DONE**
-
-Completed:
-- [x] Verify Harness external plugin package/loading contract.
-- [x] Verify right-sidebar registry/slot signatures and Host↔Client communication primitives.
-- [x] Inventory ARTEMIS device/task/trace APIs and `artemis-client`.
-- [x] Establish security/maintainability policies and upstream pins.
-- [x] Prove packaged installation/composition against pinned Harness.
-- [x] Add ARTEMIS MCP config generator and native rules-skill adapter.
-
-Exit criteria:
-- [x] No guessed Harness/ARTEMIS API in merged runtime.
-- [x] Pinned upstream SHAs documented.
-- [x] Package installs into the pinned Harness profile in CI.
-- [x] Browser routes cross the Harness trust fence before upstream access.
-- [x] MCP and human UI planes remain architecturally independent.
-
-## Phase 1 — minimal native panel
-
-**Status: DONE — merged through PR #15**
-
-Delivered:
-- [x] Native Android right-sidebar page/guide entry.
-- [x] ARTEMIS Connecting / Ready / Offline / Unavailable states.
-- [x] Active device serial/model/state/product.
-- [x] Busy / Ready / No-device states and stream connectivity indicator.
-- [x] Manual Refresh + bounded light polling.
-- [x] Native Harness primitives/tokens and packaged lazy-CJS browser artifact.
-- [x] Clean profile package installation and Cordis composition against pinned Harness.
-- [x] Deterministic real Harness + Chromium journey using public Harness lifecycle APIs.
-- [x] Android panel renders known fake ARTEMIS device state and Refresh works in Chromium.
-- [x] No private DOM injection, generic proxy, generic ADB RPC or trust-boundary regression.
-
-Compatibility note: the pinned Harness RC has a verified intermittent `ClientModuleRegistry.registerWebCarrier` startup race. CI permits one retry only for the exact known `webServer`/`registerWebCarrier` signature; functional browser failures are never retried.
+- ARTEMIS HTTP access defaults to explicit loopback and rejects arbitrary browser-selected upstreams.
+- All browser-facing plugin routes cross the Harness connection trust fence before upstream access.
+- Native Android right-sidebar UI uses Harness primitives/tokens rather than DOM injection or a parallel design system.
+- Agent automation stays in ARTEMIS MCP; the plugin UI does not reimplement an agent/device automation engine.
+- Real package installation, Cordis composition and Chromium journeys are tested against pinned Harness.
+- Browser E2E uses public Harness Workspace/Session/settings/credentials lifecycle APIs and deterministic loopback fixtures.
+- The pinned Harness `registerWebCarrier` startup race has one narrowly-scoped retry; browser functional failures are never retried.
+- Client bundle generation is reproducible from `src/client` with the pinned Harness toolchain before packaging/E2E.
 
 ## Phase 1.5 — explicit screenshot observation
 
-**Status: NEXT — implementation preparation validated, not yet merged**
+**Status: DONE — merged through PR #17**
 
-Verified groundwork:
-- [x] ARTEMIS public `device-live` stream uses bounded multipart PNG frames with `Content-Length`.
-- [x] ARTEMIS MCP/trace flows can produce screenshot evidence.
-- [x] Harness exposes native image admission/storage and model `inputModalities` metadata.
-- [x] The public Session prompt contract does **not** currently accept an existing attachment id as image input.
-- [x] A durable plugin-created image without Session ownership can become orphan state; therefore preview must remain ephemeral until a supported lifecycle exists.
+Delivered:
+- [x] Read exactly one validated ARTEMIS multipart PNG frame.
+- [x] Bound multipart headers, frame size and time-to-first-frame.
+- [x] Same-origin `GET /dsh-artemis/v1/snapshot` behind the Harness trust fence.
+- [x] Browser-side independent content-type, size and PNG-signature checks.
+- [x] Explicit **Capture screen** only; no automatic image polling.
+- [x] Ephemeral Blob/Object URL with replacement/device-change/unmount cleanup.
+- [x] Fake ARTEMIS + real packaged Harness/Chromium E2E exercises the full upstream→Host→browser path.
+- [x] Image bytes/base64 stay out of logs.
+- [x] No durable preview attachment or private Session handoff.
 
-Next implementation batch:
-- [ ] Port the safe snapshot work from the preparation branch onto a fresh branch from current `main` rather than replaying its experimental history.
-- [ ] Host reads exactly one verified ARTEMIS PNG frame with strict boundary/header/type/size/time limits and cancels the upstream stream after the frame.
-- [ ] Expose only same-origin `GET /dsh-artemis/v1/snapshot`, behind the Harness trust fence, with `no-store` and `nosniff`.
-- [ ] Browser applies independent timeout/type/size/signature checks.
-- [ ] Add explicit **Capture screen** preview to the native panel; no automatic image polling.
-- [ ] Use an ephemeral Blob/Object URL and revoke it on replacement/unmount.
-- [ ] Extend fake ARTEMIS and real Harness/Chromium E2E to exercise the full multipart→Host→browser path without route mocking.
-- [ ] Make `lib/client.js` reproducibly generated with a pinned toolchain before expanding client functionality; do not rely on floating build dependencies.
-- [ ] Keep image bytes/base64 out of logs.
-
-Model handoff gate:
-- [ ] Do not persist standalone screenshots through `ctx.attachments.saveImages()` merely for preview.
-- [ ] Do not fabricate Session events, touch private Session stores or re-base64 a stored image to force it through `session.prompt()`.
-- [ ] Only add model injection after a public Harness seam can atomically admit an existing image into a Session-owned prompt/lifecycle.
-- [ ] When that seam exists, gate vision by `LlmModelInfo.inputModalities`: explicit `image` enables it; explicit modalities without `image` disable it; missing metadata remains unknown.
-
-Exit criteria:
-- [ ] A user can explicitly capture and inspect one Android frame in the native panel.
-- [ ] Arbitrary upstream URLs/paths and unsupported/oversized frames are rejected.
-- [ ] Browser/Host tests prove bounded behavior and Object URL cleanup.
-- [ ] Full pinned Harness + Chromium E2E proves the real snapshot path.
-- [ ] Any future model-facing observation uses a supported Session-owned Harness contract.
+Model handoff remains intentionally gated:
+- Do not persist preview screenshots merely to create an attachment id.
+- Do not fabricate Session events, touch private stores, or re-base64 a stored image to force it through `session.prompt()`.
+- Add model-facing screenshots only when Harness exposes a supported Session-owned image handoff.
+- When such a seam exists, gate vision by `LlmModelInfo.inputModalities`; missing metadata remains unknown rather than assumed capable.
 
 ## Phase 2 — live human screen
 
-**Status: PLANNED**
+**Status: ACTIVE**
 
-- Consume the verified ARTEMIS multipart `device-live` stream through the cleanest supported Host path.
-- Preserve device aspect ratio and sidebar resize behavior.
-- Recover from dropped streams/restarts.
-- Keep continuous video human-facing; model observations remain discrete checkpoints.
+Current batch:
+- [x] Refactor snapshot/live onto one frame-validation pipeline.
+- [x] Parse and validate every multipart PNG frame independently.
+- [x] Add same-origin `GET /dsh-artemis/v1/live` behind the Harness trust fence.
+- [x] Normalize the downstream multipart boundary rather than transparently proxying bytes.
+- [x] Respect Node backpressure and abort upstream on browser disconnect.
+- [x] Add explicit **Start live** / **Stop live** controls.
+- [x] Disable snapshot capture while live is active.
+- [x] Stop live when the active device/stream disappears.
+- [x] Cap reconnect at four retries with bounded delays.
+- [x] Keep live frames human-facing, ephemeral and outside model context.
+- [x] Fake ARTEMIS can hold an open multipart stream and emit repeated frames.
+- [x] Browser E2E scenario includes Start→visible 1×1 live frame→Stop→snapshot preserved.
 
-Exit criteria:
-- [ ] Live viewer is stable under reconnect/restart.
-- [ ] No browser-direct ARTEMIS access is required.
-- [ ] Live frames are not silently persisted or added to model context.
+Exit criteria before `DONE`:
+- [ ] Repository CI green on the exact Phase 2 PR head.
+- [ ] Generated client bundle, package install and Cordis composition green against pinned Harness.
+- [ ] Real Harness + Chromium E2E proves Start/Stop live against the packaged generated bundle.
+- [ ] No browser-direct ARTEMIS access, silent persistence or model-context insertion.
+
+See [`live-viewer.md`](live-viewer.md) for transport/lifecycle guarantees.
 
 ## Phase 3 — bounded device controls
 
-**Status: PLANNED**
+**Status: NEXT**
 
-- Back, Home, Recents and Rotate.
-- Explicit busy/error feedback.
-- Narrow allow-listed Host/ARTEMIS actions only.
-- No generic ADB/shell surface and no duplicate ARTEMIS agent automation engine.
+Candidate controls: Back, Home, Recents and Rotate.
+
+Before implementation:
+- [ ] Inspect and pin the exact ARTEMIS contract for each operation.
+- [ ] Prefer existing narrow ARTEMIS APIs over ADB/shell access.
+- [ ] Define per-action busy/error semantics and browser contract.
+- [ ] Keep browser input unable to supply arbitrary command/path/URL values.
 
 Exit criteria:
-- [ ] Every exposed control maps to an inspected upstream contract.
-- [ ] No arbitrary command/path/URL can be supplied by browser input.
-- [ ] Relevant unit/contract tests and browser E2E cover the controls.
+- [ ] Every exposed control maps to an inspected allow-listed upstream operation.
+- [ ] Unit/contract tests cover errors and trust boundaries.
+- [ ] Real Harness/Chromium E2E covers the visible controls.
 
-## Phase 4 — tasks, traces and visual QA loop
+## Phase 4 — tasks, traces and visual QA
 
 **Status: PLANNED**
 
-- Current ARTEMIS task status and result/failure summary.
+- Native current-task status and result/failure summary.
 - Trace/replay entry points using supported ARTEMIS APIs.
-- Action → screenshot observation → model evaluation → optional bounded follow-up action.
-- Reuse existing ARTEMIS evidence instead of building a parallel screenshot archive.
-
-Exit criteria:
-- [ ] Human can inspect current task and trace evidence natively.
-- [ ] Visual checks use explicit bounded checkpoints.
-- [ ] Failure evidence is useful without leaking image/base64 content into logs.
+- Reuse ARTEMIS evidence instead of creating a parallel screenshot archive.
+- Keep visual verification at explicit bounded checkpoints.
 
 ## Phase 5 — installation and agent experience
 
@@ -171,42 +114,43 @@ Already merged:
 - [x] Independent UI/MCP architecture.
 
 Remaining:
-- [ ] One explicit setup flow around the configured ARTEMIS root.
+- [ ] Explicit setup flow around the configured ARTEMIS root.
 - [ ] Independent UI-daemon and MCP status presentation.
-- [ ] Capability-aware vision affordances.
-- [ ] Supported profile/setup documentation based on real compatibility tests.
+- [ ] Capability-aware vision affordances after a public Session image handoff exists.
 
-Exit criteria:
-- [ ] A new user can reach a working UI + MCP setup without hand-authoring fragile config.
-- [ ] Setup never scans arbitrary filesystem locations or exposes secrets.
-
-## Phase 6 — autonomous mobile computer-use workflows
+## Phase 6 — autonomous mobile computer-use
 
 **Status: PLANNED**
 
-- “Implement and visually verify” Android UI changes.
-- Reproducible bug-reproduction loop with screenshot + trace evidence.
-- Bounded regression journeys with explicit visual checkpoints.
-- Optional visual acceptance criteria supplied by the user/repository.
-- Retry/stop budgets to avoid unbounded agent/device loops.
-- Deterministic tests remain first-class and run before expensive real-device/vision checks where appropriate.
-
-Exit criteria:
-- [ ] Agent can close a bounded code→build→install→ARTEMIS→observe→verify loop.
-- [ ] Evidence and stop conditions are explicit.
-- [ ] ARTEMIS MCP remains the action authority.
+- Bounded implement→build→install→ARTEMIS→observe→verify loops.
+- Deterministic tests first; real-device/visual checks where behavior requires them.
+- Explicit retry/stop budgets and evidence boundaries.
+- ARTEMIS MCP remains the action authority.
 
 ## Phase 7 — compatibility and polish
 
-**Status: ONGOING / LATE-STAGE FOCUS**
+**Status: ONGOING**
 
-- Light/dark theme and native Harness components/tokens.
-- Document supported Harness/ARTEMIS/model revisions/capabilities.
-- Full integration smoke workflow with real ARTEMIS + Android emulator where CI infrastructure permits.
-- Performance, privacy and screenshot-retention review.
-- Release/versioning policy for a developer-preview upstream.
+- Keep Harness/ARTEMIS pins and supported revisions backed by CI evidence.
+- Maintain light/dark/native Harness UI behavior.
+- Add real ARTEMIS + emulator smoke where infrastructure permits.
+- Review performance, privacy and screenshot retention before release expansion.
+- Keep release/versioning independent of unpublished local state.
 
-Exit criteria:
-- [ ] Supported revisions are backed by reproducible CI evidence.
-- [ ] Security/privacy expectations are documented and tested.
-- [ ] Release process does not depend on unpublished local state.
+## Current critical path
+
+```text
+Phase 2 PR: generated bundle + packaged Harness + Chromium Start/Stop live
+        ↓
+merge Phase 2 and mark DONE
+        ↓
+inspect exact ARTEMIS Back/Home/Recents/Rotate contracts
+        ↓
+Phase 3 bounded controls
+        ↓
+tasks/traces + explicit visual QA checkpoints
+        ↓
+public Session-owned image handoff (when Harness exposes one)
+        ↓
+capability-driven model vision
+```
