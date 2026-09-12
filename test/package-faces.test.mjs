@@ -22,7 +22,7 @@ test('bundle patch inserts the Host plugin by package name', async () => {
   assert.match(patch, /name:\s*['"]dsh-artemis['"]/)
 })
 
-test('Host face effect-owns both route registrations', () => {
+test('Host face effect-owns all registered read-only routes', () => {
   assert.equal(hostPlugin.name, 'dsh-artemis')
   assert.deepEqual(hostPlugin.inject, ['webServer', 'connection'])
   const effects = []
@@ -36,9 +36,9 @@ test('Host face effect-owns both route registrations', () => {
   hostPlugin.apply(ctx)
   assert.equal(effects.length, 1)
   const dispose = effects[0].factory()
-  assert.deepEqual(routes.map((route) => route.path), ['/dsh-artemis/v1/overview', '/dsh-artemis/v1/snapshot'])
+  assert.deepEqual(routes.map((route) => route.path), ['/dsh-artemis/v1/overview', '/dsh-artemis/v1/snapshot', '/dsh-artemis/v1/live'])
   dispose()
-  assert.deepEqual(disposed, ['/dsh-artemis/v1/snapshot', '/dsh-artemis/v1/overview'])
+  assert.deepEqual(disposed, ['/dsh-artemis/v1/live', '/dsh-artemis/v1/snapshot', '/dsh-artemis/v1/overview'])
 })
 
 test('Client registration uses Android page type, guide entry and keyed native sidebar seat', () => {
