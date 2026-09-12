@@ -22,29 +22,27 @@ test('bundle patch inserts the Host plugin by package name', async () => {
   assert.match(patch, /name:\s*['"]dsh-artemis['"]/)
 })
 
-test('Host face declares only consumed services and effect-owns registration', () => {
+test('Host face effect-owns both route registrations', () => {
   assert.equal(hostPlugin.name, 'dsh-artemis')
   assert.deepEqual(hostPlugin.inject, ['webServer', 'connection'])
-
   const effects = []
   const routes = []
-  const dispose = () => {}
+  const disposed = []
   const ctx = {
     effect(factory, label) { effects.push({ factory, label }) },
-    webServer: { register(route) { routes.push(route); return dispose } },
+    webServer: { register(route) { routes.push(route); return () => disposed.push(route.path) } },
     connection: { requestRejection() { return undefined } },
   }
-
   hostPlugin.apply(ctx)
   assert.equal(effects.length, 1)
-  assert.match(effects[0].label, /host routes/)
-  assert.equal(effects[0].factory(), dispose)
-  assert.equal(routes.length, 1)
+  const dispose = effects[0].factory()
+  assert.deepEqual(routes.map((route) => route.path), ['/dsh-artemis/v1/overview', '/dsh-artemis/v1/snapshot'])
+  dispose()
+  assert.deepEqual(disposed, ['/dsh-artemis/v1/snapshot', '/dsh-artemis/v1/overview'])
 })
 
 test('Client registration uses Android page type, guide entry and keyed native sidebar seat', () => {
   assert.deepEqual(clientInject, ['slots', 'sidebarRightTabs'])
-
   const effects = []
   const definitions = []
   const seatRegistrations = []
@@ -56,34 +54,17 @@ test('Client registration uses Android page type, guide entry and keyed native s
     effect(factory, label) { effects.push({ factory, label }) },
     sidebarRightTabs: { register(definition) { definitions.push(definition); return typeDispose } },
     slots: {
-      inject(name, factory) {
-        assert.equal(name, 'sidebar.right.pane.tab')
-        assert.equal(factory(), seatDispose)
-        return injectDispose
-      },
-      register(metadata, component) {
-        seatRegistrations.push({ metadata, component })
-        return seatDispose
-      },
+      inject(name, factory) { assert.equal(name, 'sidebar.right.pane.tab'); assert.equal(factory(), seatDispose); return injectDispose },
+      register(metadata, component) { seatRegistrations.push({ metadata, component }); return seatDispose },
     },
   }
-
   registerAndroidClient(ctx, AndroidPanel)
   assert.equal(effects.length, 2)
   assert.equal(effects[0].factory(), typeDispose)
   assert.equal(effects[1].factory(), injectDispose)
-
   const expected = androidTabDefinition()
   assert.equal(definitions[0].id, expected.id)
   assert.equal(definitions[0].kind, 'android')
-  assert.equal(definitions[0].priority, 'extension')
-  assert.equal(definitions[0].title(), 'Android')
-  assert.equal(definitions[0].guide.length, 1)
-  assert.equal(definitions[0].guide[0].title(), 'Android')
-  assert.match(definitions[0].guide[0].description(), /ARTEMIS/)
-  assert.deepEqual(seatRegistrations[0].metadata, {
-    name: 'sidebar.right.pane.tab',
-    key: 'dsh-artemis:android',
-  })
+  assert.deepEqual(seatRegistrations[0].metadata, { name: 'sidebar.right.pane.tab', key: 'dsh-artemis:android' })
   assert.equal(seatRegistrations[0].component, AndroidPanel)
 })

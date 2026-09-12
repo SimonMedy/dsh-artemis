@@ -7,6 +7,8 @@ on:
       - "cordis.patch.yml"
       - "src/**"
       - "lib/client.js"
+      - "scripts/**"
+      - "tsdown.client.config.mjs"
       - "test/e2e/**"
       - "test/fixtures/**"
       - "docs/upstreams.md"
@@ -15,7 +17,6 @@ on:
 
 permissions:
   contents: read
-
 env:
   HARNESS_SHA: c291e7961a515f6d7af9304e7fd1d257929aef26
   PNPM_VERSION: 11.7.0
@@ -28,7 +29,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: dsh-artemis
-
       - name: Checkout pinned DeepSeek Harness
         uses: actions/checkout@v4
         with:
@@ -39,7 +39,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.20.0
-
       - name: Enable pinned pnpm
         run: |
           corepack enable
@@ -61,6 +60,18 @@ jobs:
           run_quiet harness-install pnpm install --frozen-lockfile
           run_quiet harness-build pnpm run build
           pnpm dsh --version
+      - name: Rebuild dsh-artemis browser client from pinned Harness toolchain
+        working-directory: dsh-artemis
+        env:
+          DSH_HARNESS_ROOT: ${{ github.workspace }}/deepseek-harness
+          DSH_HARNESS_SHA: ${{ env.HARNESS_SHA }}
+          DSH_ARTEMIS_CLIENT_OUT_DIR: ${{ github.workspace }}/dsh-artemis/lib
+        run: |
+          npm run bundle:client
+          node --test test/client-bundle.test.mjs
+          grep -F 'window.__ModuleLoader__.load' lib/client.js
+          grep -F '/dsh-artemis/v1/snapshot' lib/client.js
+          grep -F 'Capture Android screen' lib/client.js
       - name: Pack dsh-artemis as a distribution artifact
         id: pack
         working-directory: dsh-artemis
@@ -75,6 +86,7 @@ jobs:
           tar -tzf "$TARBALL" | grep -F 'package/lib/client.js'
           tar -tzf "$TARBALL" | grep -F 'package/src/integration/rules-skill-plugin.mjs'
           tar -xOzf "$TARBALL" package/lib/client.js | grep -F 'window.__ModuleLoader__.load'
+          tar -xOzf "$TARBALL" package/lib/client.js | grep -F '/dsh-artemis/v1/snapshot'
       - name: Install package into an isolated Harness web profile
         working-directory: deepseek-harness
         env:
@@ -84,12 +96,10 @@ jobs:
           pnpm dsh plugin --profile web add "$ARTEMIS_TARBALL"
           test -f "$DSH_HOME/profiles/web/package.json"
           node -e "const p=require(process.env.DSH_HOME+'/profiles/web/package.json'); if (!p.dependencies?.['dsh-artemis']) process.exit(1)"
-
       - name: Resolve rules-skill package subpath from the installed profile
         working-directory: ${{ runner.temp }}/dsh-home/profiles/web
         run: |
           node --input-type=module -e "const m=await import('dsh-artemis/rules-skill'); if(m.name!=='dsh-artemis-rules-skill'||JSON.stringify(m.inject)!=='[\"skills\"]') process.exit(1)"
-
       - name: Verify composed Cordis tree contains dsh-artemis
         working-directory: deepseek-harness
         env:
@@ -98,11 +108,9 @@ jobs:
           pnpm dsh web --dump-config > "$RUNNER_TEMP/dsh-web-config.yml"
           grep -F 'id: dsh-artemis' "$RUNNER_TEMP/dsh-web-config.yml"
           grep -F 'dsh-artemis' "$RUNNER_TEMP/dsh-web-config.yml"
-
       - name: Install Chromium for the Harness Playwright runtime
         working-directory: deepseek-harness/apps/web
         run: pnpm exec playwright install chromium
-
       - name: Start deterministic local test services
         run: |
           node dsh-artemis/test/fixtures/fake-artemis.mjs > "$RUNNER_TEMP/fake-artemis.log" 2>&1 &
@@ -119,7 +127,6 @@ jobs:
           done
           echo "Local test services failed to start" >&2
           exit 1
-
       - name: Start authenticated Harness Web
         working-directory: deepseek-harness
         env:
@@ -148,7 +155,6 @@ jobs:
             pnpm dsh web --no-open --port 3080 > "$log" 2>&1 &
             local pid=$!
             printf '%s' "$pid" > "$RUNNER_TEMP/dsh-web.pid"
-
             for _ in $(seq 1 120); do
               if grep -qE '^dsh web: http://127\.0\.0\.1:3080/\?token=' "$log"; then
                 cp "$log" "$RUNNER_TEMP/dsh-web.log"
@@ -164,12 +170,10 @@ jobs:
               fi
               sleep 0.5
             done
-
             kill "$pid" 2>/dev/null || true
             fail_start "$log"
             return 1
           }
-
           if start_harness 1; then
             :
           else
@@ -178,7 +182,6 @@ jobs:
             sleep 0.5
             start_harness 2
           fi
-
           AUTH_URL=$(sed -nE 's#^dsh web: (http://127\.0\.0\.1:3080/\?token=[^[:space:]]+).*#\1#p' "$RUNNER_TEMP/dsh-web.log" | tail -n 1)
           if [ -z "$AUTH_URL" ]; then
             fail_start "$RUNNER_TEMP/dsh-web.log"
@@ -186,7 +189,6 @@ jobs:
           fi
           printf '%s' "$AUTH_URL" > "$RUNNER_TEMP/dsh-auth-url"
           chmod 600 "$RUNNER_TEMP/dsh-auth-url"
-
       - name: Run Android panel browser E2E
         working-directory: deepseek-harness/apps/web
         env:
@@ -196,7 +198,6 @@ jobs:
         run: |
           cp "$GITHUB_WORKSPACE/dsh-artemis/test/e2e/native-panel.e2e.mjs" ./dsh-artemis-native-panel.e2e.mjs
           pnpm exec node ./dsh-artemis-native-panel.e2e.mjs
-
       - name: Upload browser failure evidence
         if: failure()
         uses: actions/upload-artifact@v4
@@ -205,7 +206,6 @@ jobs:
           path: ${{ runner.temp }}/dsh-artemis-e2e
           if-no-files-found: ignore
           retention-days: 3
-
       - name: Stop local test services
         if: always()
         run: |
