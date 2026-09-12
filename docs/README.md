@@ -6,10 +6,11 @@
 - [`investigation.md`](investigation.md): verified facts, unknowns and decisions from upstream inspection.
 - [`maintainability.md`](maintainability.md): sustainable coding, compatibility and review practices.
 - [`mcp-integration.md`](mcp-integration.md): Harness MCP connection, config generation and ARTEMIS rules-skill integration.
+- [`hybrid-testing.md`](hybrid-testing.md): deterministic-first Android testing policy and when ARTEMIS + multimodal verification adds value.
 - [`testing.md`](testing.md): validation strategy from unit tests to full Harness + ARTEMIS integration.
 - [`ui-native-conventions.md`](ui-native-conventions.md): native Harness sidebar/UI conventions for this plugin.
 - [`upstreams.md`](upstreams.md): pinned DeepSeek Harness and ARTEMIS revisions.
-- [`roadmap.md`](roadmap.md): phased implementation plan.
+- [`roadmap.md`](roadmap.md): execution tracker with current phase status and exit criteria.
 - [`../SECURITY.md`](../SECURITY.md): security boundaries, reporting policy and secure implementation requirements.
 
 The source of truth for an upstream interface is the code at the pinned SHA, not a prose description in this repository.
