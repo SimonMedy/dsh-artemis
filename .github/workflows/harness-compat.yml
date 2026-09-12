@@ -124,8 +124,6 @@ jobs:
         working-directory: deepseek-harness
         env:
           DSH_HOME: ${{ runner.temp }}/dsh-home
-          DEEPSEEK_BASE_URL: http://127.0.0.1:8001
-          DEEPSEEK_API_KEY: dsh-artemis-e2e-dummy
         run: |
           redact_log() {
             sed -E 's/(token=)[^[:space:]]+/\1<redacted>/g' "$RUNNER_TEMP/dsh-web.log" | tail -n 80 | tr '\n' ' ' | sed -E 's/::/%3A%3A/g; s/%/%25/g; s/\r/%0D/g; s/\n/%0A/g'

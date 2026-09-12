@@ -73,6 +73,27 @@ async function callHarnessRpc(endpoint, method, args) {
   }, { endpoint, method, args })
 }
 
+async function configureDeterministicProvider() {
+  const described = await callHarnessRpc('settings/describe', 'settings/describe', {})
+  const namespace = Array.isArray(described?.namespaces)
+    ? described.namespaces.find((candidate) => candidate?.ns === 'llm-deepseek')
+    : null
+  assert.ok(namespace, 'Harness must expose the llm-deepseek settings namespace')
+  assert.ok(Number.isSafeInteger(namespace.revision), 'llm-deepseek settings must expose a revision')
+
+  const updated = await callHarnessRpc('settings/update', 'settings/update', {
+    ns: 'llm-deepseek',
+    patch: { baseURL: 'http://127.0.0.1:8001' },
+    expectedRevision: namespace.revision,
+  })
+  assert.equal(updated?.ns, 'llm-deepseek', 'Harness must update the DeepSeek provider namespace')
+
+  await callHarnessRpc('credentials/set', 'credentials/set', {
+    ref: 'DEEPSEEK_API_KEY',
+    value: 'dsh-artemis-e2e-dummy',
+  })
+}
+
 async function createWorkspaceAndSession(cwd) {
   const workspaceValue = await callHarnessRpc('workspace/create', 'workspace/create', { request: { path: cwd } })
   const workspaceId = workspaceValue?.workspace?.workspaceId
@@ -133,6 +154,9 @@ try {
 
   phase = 'onboarding-before-workspace'
   await completeHarnessOnboarding({ waitForNotice: true })
+
+  phase = 'configure-local-provider'
+  await configureDeterministicProvider()
 
   phase = 'create-workspace-session'
   const created = await createWorkspaceAndSession(sessionCwd)

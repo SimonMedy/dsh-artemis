@@ -41,9 +41,9 @@ The same compatibility job starts two deterministic loopback fixtures before boo
 - fake ARTEMIS on `127.0.0.1:8000` for the Android/device boundary;
 - fake DeepSeek on `127.0.0.1:8001` for one deterministic provider response.
 
-Harness is started with `DEEPSEEK_BASE_URL` pointed at the loopback fake and a dummy `DEEPSEEK_API_KEY`. No external model endpoint, real credential or model billing is involved.
+Harness itself starts with its normal profile and no provider-specific environment overrides. After authentication and first-run onboarding, the browser test configures the already-mounted DeepSeek provider through the public Host APIs: it updates the `llm-deepseek` settings namespace with the loopback `baseURL` and stores a fixed dummy `DEEPSEEK_API_KEY` through the public `credentials.set` Remote. No external model endpoint, real credential or model billing is involved, and the credential value is never read back or logged.
 
-The browser test consumes the actual per-process Harness authentication URL without printing or uploading its token, follows the normal first-run onboarding, creates a real Workspace and Session through the public Harness RPC transport, then submits one short prompt through `session.prompt`. That prompt exists only to make the Session non-blank using the same public lifecycle as production: pinned Harness intentionally hides Session header chrome (and therefore the right-sidebar expand button) while a Session is still blank. The local fake provider emits a minimal valid SSE completion and no tool call.
+The browser test creates a real Workspace and Session through the public Harness RPC transport, then submits one short prompt through `session.prompt`. That prompt exists only to make the Session non-blank using the same public lifecycle as production: pinned Harness intentionally hides Session header chrome (and therefore the right-sidebar expand button) while a Session is still blank. The local fake provider emits a minimal valid SSE completion and no tool call.
 
 After `session.list` reports that exact Session as non-blank, the test reloads, opens the Session through the native Workspace browser, opens Android through the shipped right-sidebar guide entry, then verifies:
 
