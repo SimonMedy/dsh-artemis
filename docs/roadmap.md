@@ -15,7 +15,7 @@ Last updated: 2026-09-12
 | 1.5 — explicit screenshot observation | **DONE** | Bounded snapshot route, ephemeral preview, reproducible client build and real Harness/Chromium capture merged through PR #17 |
 | 2 — live human screen | **DONE** | Bounded multi-frame transport, explicit Start/Stop viewer, reconnect budget and packaged Harness/Chromium E2E merged through PR #18 |
 | 3 — bounded device controls | **BLOCKED** | Pinned ARTEMIS has canonical Back/Home/Recents actions only in a separate broad action/ADB surface; no narrow configured-MCP/Admin transport and no canonical Rotate contract |
-| 4 — tasks, traces & visual QA | **PARTIAL** | First bounded read-only current-task/latest-step/trace metadata lot merged through PR #19; read-only trace/replay drill-down + visual QA remain |
+| 4 — tasks, traces & visual QA | **PARTIAL** | Bounded task evidence PR #19, bounded latest-trace drill-down PR #21, and ephemeral visual QA checkpoint PR #22 merged; replay and model-image handoff remain gated |
 | 5 — installation & agent experience | **PARTIAL** | MCP config + rules skill merged; setup/status UX remains |
 | 6 — autonomous mobile computer-use | **PLANNED** | Build bounded code→build→ARTEMIS→observe→verify→fix workflows |
 | 7 — compatibility & polish | **ONGOING** | Keep supported revisions backed by reproducible CI evidence |
@@ -91,28 +91,25 @@ Exit criteria remain:
 
 ## Phase 4 — tasks, traces and visual QA
 
-**Status: PARTIAL — first bounded evidence lot merged through PR #19**
+**Status: PARTIAL — bounded evidence, latest-trace drill-down and ephemeral visual QA merged**
 
-Delivered first bounded evidence lot:
-- [x] Same-origin read-only `/dsh-artemis/v1/evidence` route behind Harness connection trust.
-- [x] Server derives the active ARTEMIS session from `/api/status`; browser cannot provide a session or trace identifier.
-- [x] Expose only current task status/goal/counts plus latest step action and at most eight trace name/type/status records.
-- [x] Bound upstream JSON bytes, string lengths and identifier syntax.
-- [x] Exclude task bodies, model metadata, action payloads, screenshots, trace payloads and arbitrary upstream JSON.
-- [x] Client independently validates the versioned project DTO and polls with same-origin/no-store semantics.
-- [x] Deterministic fixture includes deliberate secrets so E2E can prove they do not reach rendered evidence.
+Delivered:
+- [x] PR #19: same-origin read-only `/dsh-artemis/v1/evidence` behind Harness connection trust.
+- [x] Server derives the active ARTEMIS session from `/api/status`; browser cannot provide session, step or trace identifiers.
+- [x] Current task status/goal/counts and latest step action are bounded; task bodies, model metadata, action payloads, screenshots and arbitrary upstream JSON are excluded.
+- [x] PR #21: explicit `/dsh-artemis/v1/evidence/latest-traces` drill-down derives the latest session/step server-side and returns only bounded `name`/`type`/`status`/`children` trees.
+- [x] Latest-trace trees are capped at 64 nodes, depth 6, and 16 children per node; raw thinking, payloads, screenshots/paths, identifiers and LLM content are excluded.
+- [x] PR #22: manual visual QA checkpoint orchestrates only the existing safe evidence + snapshot routes.
+- [x] The checkpoint keeps only a validated PNG Blob/Object URL, local timestamp, bounded task summary and latest-step summary; session identifiers and detailed traces are dropped.
+- [x] Checkpoint Object URLs are revoked on replacement and unmount; nothing is uploaded, archived, replayed, persisted or added to model context.
+- [x] Deterministic fake ARTEMIS fixtures contain deliberate secrets so E2E proves they do not reach rendered evidence/checkpoints.
+- [x] Real packaged Harness/Chromium E2E covers task evidence, latest trace structure, checkpoint capture, PNG dimensions, preview/live coexistence and secret non-disclosure.
+- [x] Repository CI and the full pinned Harness install/build/package/Cordis/fake-ARTEMIS/Harness-Web/Chromium gate were green on the exact PR #22 head before merge.
 
-Validated on the exact PR #19 head and then merged to `main`:
-- [x] Repository CI green.
-- [x] Generated client bundle/package/Cordis composition green against pinned Harness.
-- [x] Real Harness/Chromium E2E proves task evidence and secret non-disclosure through the packaged generated bundle.
-- [x] Merged to `main` through PR #19.
-
-Next Phase 4 lots:
-- [ ] Add read-only trace/replay drill-down only through validated server-derived identifiers.
-- [ ] Keep replay execution opt-in and separately policy-gated; do not expose a generic replay trigger yet.
-- [ ] Reuse ARTEMIS evidence instead of creating a parallel screenshot archive.
-- [ ] Add explicit bounded visual QA checkpoints where behavior requires visual evidence.
+Remaining Phase 4 gates:
+- [ ] Keep replay separately policy-gated. The pinned ARTEMIS replay GET flow can call `_ensure_session_chunked(...)` and materialize chunks/files, so it is not a side-effect-free read-only surface.
+- [ ] Add further evidence routes only when the upstream operation is confirmed read-only and side-effect-free.
+- [ ] Keep model-facing image handoff gated until Harness exposes a supported public Session-owned image handoff; then gate vision by `LlmModelInfo.inputModalities`.
 
 ## Phase 5 — installation and agent experience
 
@@ -154,11 +151,9 @@ Phase 2 merged and DONE
         ↓
 Phase 3 safe transport blocked on upstream narrow control contract
         ↓ (work can continue independently)
-Phase 4 first bounded evidence lot merged through PR #19
+Phase 4 bounded task evidence + latest-trace tree + ephemeral visual QA merged
         ↓
-read-only trace/replay drill-down + explicit visual QA checkpoints
+Phase 5 setup/status UX (directly actionable)
         ↓
-public Session-owned image handoff (when Harness exposes one)
-        ↓
-capability-driven model vision
+replay remains policy/side-effect gated; model image handoff remains upstream-gated
 ```
