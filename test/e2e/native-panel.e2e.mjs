@@ -121,7 +121,14 @@ async function engageSession(sessionId) {
   while (Date.now() < deadline) {
     const list = await callHarnessRpc('session/list', 'session/list', { _request: {} })
     const item = Array.isArray(list?.items) ? list.items.find((entry) => entry?.sessionId === sessionId) : null
-    if (item?.blank === false) return
+    if (item?.blank === false) {
+      const title = `dsh-artemis E2E ${sessionId.slice(-8)}`
+      const renamed = await callHarnessRpc('session/rename', 'session/rename', {
+        request: { sessionId, title },
+      })
+      assert.equal(renamed?.title, title, 'Harness must persist the deterministic E2E session title')
+      return title
+    }
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
   throw new Error('Harness session did not become non-blank after the deterministic prompt')
@@ -164,7 +171,7 @@ try {
   createdSessionId = created.sessionId
 
   phase = 'engage-session'
-  await engageSession(createdSessionId)
+  const createdSessionTitle = await engageSession(createdSessionId)
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 })
 
   phase = 'onboarding-after-reload'
@@ -177,10 +184,10 @@ try {
   if (await workspaceRows.first().getAttribute('aria-expanded') !== 'true') await workspaceRows.first().click()
 
   phase = 'open-created-session'
-  const sessionRows = page.locator('[role="treeitem"][aria-selected]')
-  await sessionRows.first().waitFor({ state: 'visible', timeout: 20_000 })
-  assert.equal(await sessionRows.count(), 1, 'isolated E2E profile must contain exactly one session row')
-  await sessionRows.first().click()
+  const createdSessionRow = page.locator('[role="treeitem"][aria-selected]').filter({ hasText: createdSessionTitle })
+  await createdSessionRow.waitFor({ state: 'visible', timeout: 20_000 })
+  assert.equal(await createdSessionRow.count(), 1, 'created E2E session must resolve to exactly one visible Harness row')
+  await createdSessionRow.click()
 
   phase = 'wait-session-shell'
   const expandSidebar = page.locator('[data-sidebar-right-expand]')
