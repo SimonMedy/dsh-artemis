@@ -3,14 +3,21 @@ import { readFile } from 'node:fs/promises'
 import vm from 'node:vm'
 import test from 'node:test'
 
-test('published client is a Harness lazy-CJS module-table bundle', async () => {
+test('published client is a Harness lazy-CJS module-table bundle with snapshot UI', async () => {
   const source = await readFile('lib/client.js', 'utf8')
   assert.match(source, /^window\.__ModuleLoader__\.load\(/)
   assert.doesNotMatch(source, /^\s*import\s/m)
+  assert.match(source, /\/dsh-artemis\/v1\/snapshot/)
+  assert.match(source, /Capture Android screen/)
+  assert.match(source, /Android screen preview/)
 
   let registration
   vm.runInNewContext(source, {
     window: { __ModuleLoader__: { load(value) { registration = value } } },
+    Uint8Array,
+    URL,
+    Blob,
+    AbortSignal,
   }, { filename: 'lib/client.js' })
 
   assert.equal(registration.id, 'dsh-artemis')
@@ -33,7 +40,6 @@ test('published client is a Harness lazy-CJS module-table bundle', async () => {
       StateDot() { return null },
     },
   }
-
   const plugin = registration.factory((id) => {
     if (!(id in platformModules)) throw new Error(`unexpected module request: ${id}`)
     return platformModules[id]
@@ -44,9 +50,7 @@ test('published client is a Harness lazy-CJS module-table bundle', async () => {
 
   const ctx = {
     effect(factory, label) { effects.push({ factory, label }) },
-    sidebarRightTabs: {
-      register(definition) { definitionRegistrations.push(definition); return () => {} },
-    },
+    sidebarRightTabs: { register(definition) { definitionRegistrations.push(definition); return () => {} } },
     slots: {
       inject(_name, factory) { factory(); return () => {} },
       register(metadata, component) { seatRegistrations.push({ metadata, component }); return () => {} },
@@ -54,7 +58,6 @@ test('published client is a Harness lazy-CJS module-table bundle', async () => {
   }
   plugin.apply(ctx)
   for (const effect of effects) effect.factory()
-
   assert.equal(definitionRegistrations[0].id, 'dsh-artemis:android')
   assert.equal(seatRegistrations[0].metadata.key, 'dsh-artemis:android')
   assert.equal(typeof seatRegistrations[0].component, 'function')
