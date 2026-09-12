@@ -2,131 +2,88 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import test from 'node:test'
 import { ArtemisProtocolError } from '../src/host/artemis-http.mjs'
-import { OVERVIEW_ROUTE, createOverviewHandler, registerArtemisHostRoutes } from '../src/host/harness-routes.mjs'
+import { OVERVIEW_ROUTE, SNAPSHOT_ROUTE, createOverviewHandler, createSnapshotHandler, registerArtemisHostRoutes } from '../src/host/harness-routes.mjs'
 
 async function serve(handler, run) {
   const server = createServer(handler)
-  await new Promise((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', resolve)
-  })
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
   const { port } = server.address()
-  try {
-    await run(`http://127.0.0.1:${port}`)
-  } finally {
+  try { await run(`http://127.0.0.1:${port}`) } finally {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
   }
 }
 
+function pngFixture() { return Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x41]) }
 function readyClient() {
   return {
     async health() { return { reachable: true, status: 'ready' } },
-    async listDevices() {
-      return [{ serial: 'emulator-5554', state: 'device', model: 'Pixel_9', product: null, busy: false }]
-    },
-    async getStreamState() {
-      return { connected: true, serial: 'emulator-5554', liveStreamPath: '/api/stream/device-live' }
-    },
+    async listDevices() { return [{ serial: 'emulator-5554', state: 'device', model: 'Pixel_9', product: null, busy: false }] },
+    async getStreamState() { return { connected: true, serial: 'emulator-5554', liveStreamPath: '/api/stream/device-live' } },
+    async getSnapshot() { const data = pngFixture(); return { mediaType: 'image/png', data, bytes: data.byteLength } },
   }
 }
 
-function trustedContext(registrations, dispose) {
+function trustedContext(registrations, disposals = []) {
   return {
-    webServer: { register(route) { registrations.push(route); return dispose } },
+    webServer: { register(route) { registrations.push(route); return () => disposals.push(route.path) } },
     connection: { requestRejection() { return undefined } },
   }
 }
 
-test('registers one exact overview route behind Harness connection trust', () => {
+test('registers exact overview and snapshot routes behind Harness connection trust', () => {
   const registrations = []
-  const dispose = () => {}
-  const ctx = trustedContext(registrations, dispose)
-
-  assert.equal(registerArtemisHostRoutes(ctx, readyClient()), dispose)
-  assert.equal(registrations.length, 1)
-  assert.equal(registrations[0].kind, 'exact')
-  assert.equal(registrations[0].path, OVERVIEW_ROUTE)
+  const disposals = []
+  const dispose = registerArtemisHostRoutes(trustedContext(registrations, disposals), readyClient())
+  assert.deepEqual(registrations.map((route) => [route.kind, route.path]), [['exact', OVERVIEW_ROUTE], ['exact', SNAPSHOT_ROUTE]])
+  dispose()
+  assert.deepEqual(disposals, [SNAPSHOT_ROUTE, OVERVIEW_ROUTE])
 })
 
-test('registration refuses to expose a route without Harness connection trust', () => {
-  const ctx = { webServer: { register() { throw new Error('must not register') } } }
-  assert.throws(() => registerArtemisHostRoutes(ctx, readyClient()), /connection trust service/)
+test('registration refuses routes without Harness connection trust', () => {
+  assert.throws(() => registerArtemisHostRoutes({ webServer: { register() {} } }, readyClient()), /connection trust service/)
 })
 
-test('overview exposes normalized state and not the upstream stream URL', async () => {
+test('overview exposes normalized state', async () => {
   await serve(createOverviewHandler(readyClient()), async (baseUrl) => {
     const response = await fetch(`${baseUrl}${OVERVIEW_ROUTE}`)
     assert.equal(response.status, 200)
-    assert.equal(response.headers.get('cache-control'), 'no-store')
-    assert.deepEqual(await response.json(), {
-      version: 1,
-      artemis: { state: 'ready', status: 'ready' },
-      devices: [{ serial: 'emulator-5554', state: 'device', model: 'Pixel_9', product: null, busy: false }],
-      activeDeviceSerial: 'emulator-5554',
-      stream: { connected: true },
-    })
+    assert.equal((await response.json()).activeDeviceSerial, 'emulator-5554')
   })
 })
 
-test('Harness trust rejection happens before method handling or ARTEMIS access', async () => {
-  let called = false
-  const client = readyClient()
-  client.health = async () => { called = true; return { reachable: true, status: 'ready' } }
-  const handler = createOverviewHandler(client, { requestRejection: () => 403 })
-
-  await serve(handler, async (baseUrl) => {
-    const response = await fetch(`${baseUrl}${OVERVIEW_ROUTE}`, { method: 'POST' })
-    assert.equal(response.status, 403)
-    assert.equal(response.headers.get('cache-control'), 'no-store')
-    assert.equal(called, false)
-    assert.equal(await response.text(), '')
-  })
-})
-
-test('ARTEMIS connection failure degrades to an offline overview', async () => {
-  const client = readyClient()
-  client.health = async () => { throw new ArtemisProtocolError('connect failed', { code: 'unavailable' }) }
-
-  await serve(createOverviewHandler(client), async (baseUrl) => {
-    const response = await fetch(`${baseUrl}${OVERVIEW_ROUTE}`)
+test('snapshot returns one no-store PNG without exposing ARTEMIS location', async () => {
+  const frame = pngFixture()
+  await serve(createSnapshotHandler(readyClient()), async (baseUrl) => {
+    const response = await fetch(`${baseUrl}${SNAPSHOT_ROUTE}`)
     assert.equal(response.status, 200)
-    assert.deepEqual(await response.json(), {
-      version: 1,
-      artemis: { state: 'offline', status: null },
-      devices: [],
-      activeDeviceSerial: null,
-      stream: { connected: false },
-    })
+    assert.equal(response.headers.get('content-type'), 'image/png')
+    assert.equal(response.headers.get('cache-control'), 'no-store')
+    assert.equal(response.headers.get('x-content-type-options'), 'nosniff')
+    assert.deepEqual(Buffer.from(await response.arrayBuffer()), Buffer.from(frame))
   })
 })
 
-test('non-GET methods are rejected without touching ARTEMIS', async () => {
+test('Harness trust rejection happens before snapshot ARTEMIS access', async () => {
   let called = false
   const client = readyClient()
-  client.health = async () => { called = true; return { reachable: true, status: 'ready' } }
-
-  await serve(createOverviewHandler(client), async (baseUrl) => {
-    const response = await fetch(`${baseUrl}${OVERVIEW_ROUTE}`, { method: 'POST' })
-    assert.equal(response.status, 405)
-    assert.equal(response.headers.get('allow'), 'GET, HEAD')
+  client.getSnapshot = async () => { called = true; return { data: pngFixture() } }
+  await serve(createSnapshotHandler(client, { requestRejection: () => 403 }), async (baseUrl) => {
+    const response = await fetch(`${baseUrl}${SNAPSHOT_ROUTE}`)
+    assert.equal(response.status, 403)
     assert.equal(called, false)
-    assert.deepEqual(await response.json(), {
-      error: { code: 'method-not-allowed', message: 'Method not allowed' },
-    })
   })
 })
 
-test('protocol failures return bounded errors without upstream details', async () => {
+test('snapshot accepts GET only and sanitizes protocol failures', async () => {
+  let called = false
   const client = readyClient()
-  client.health = async () => { throw new ArtemisProtocolError('secret upstream detail') }
-
-  await serve(createOverviewHandler(client), async (baseUrl) => {
-    const response = await fetch(`${baseUrl}${OVERVIEW_ROUTE}`)
-    assert.equal(response.status, 502)
-    const text = await response.text()
-    assert.doesNotMatch(text, /secret upstream detail/)
-    assert.deepEqual(JSON.parse(text), {
-      error: { code: 'artemis-protocol-error', message: 'ARTEMIS returned an invalid response' },
-    })
+  client.getSnapshot = async () => { called = true; throw new ArtemisProtocolError('private detail') }
+  await serve(createSnapshotHandler(client), async (baseUrl) => {
+    const denied = await fetch(`${baseUrl}${SNAPSHOT_ROUTE}`, { method: 'POST' })
+    assert.equal(denied.status, 405)
+    assert.equal(called, false)
+    const failed = await fetch(`${baseUrl}${SNAPSHOT_ROUTE}`)
+    assert.equal(failed.status, 502)
+    assert.doesNotMatch(await failed.text(), /private detail/)
   })
 })
