@@ -10,7 +10,13 @@ import {
 export { HOST_ROUTE_PREFIX, LIVE_ROUTE, OVERVIEW_ROUTE, SNAPSHOT_ROUTE }
 
 const LIVE_BOUNDARY = 'dsh-artemis-frame'
-
+const DEFAULT_SETUP_STATUS = Object.freeze({
+  artemisRoot: 'not-supplied',
+  python: 'profile-managed',
+  mcpRuntime: 'unobservable',
+})
+const ROOT_STATES = new Set(['validated', 'not-supplied', 'invalid'])
+const PYTHON_STATES = new Set(['validated-explicit', 'profile-managed', 'unknown', 'invalid'])
 function writeJson(res, status, value, { head = false, extraHeaders = {} } = {}) {
   const body = JSON.stringify(value)
   res.writeHead(status, {
@@ -23,7 +29,6 @@ function writeJson(res, status, value, { head = false, extraHeaders = {} } = {})
   if (head) res.end()
   else res.end(body)
 }
-
 function writePng(res, data) {
   res.writeHead(200, {
     'content-type': 'image/png',
@@ -33,7 +38,6 @@ function writePng(res, data) {
   })
   res.end(Buffer.from(data.buffer, data.byteOffset, data.byteLength))
 }
-
 function rejectUntrustedRequest(req, res, requestRejection) {
   if (typeof requestRejection !== 'function') return false
   const rejection = requestRejection(req)
@@ -43,7 +47,6 @@ function rejectUntrustedRequest(req, res, requestRejection) {
   res.end()
   return true
 }
-
 function safeError(error) {
   if (error instanceof ArtemisProtocolError) {
     if (error.code === 'unavailable') {
@@ -53,7 +56,19 @@ function safeError(error) {
   }
   return { status: 500, body: { error: { code: 'internal-error', message: 'Internal dsh-artemis error' } } }
 }
-
+function normalizeSetupStatus(value) {
+  if (!value || typeof value !== 'object') return DEFAULT_SETUP_STATUS
+  const artemisRoot = ROOT_STATES.has(value.artemisRoot) ? value.artemisRoot : 'invalid'
+  const python = PYTHON_STATES.has(value.python) ? value.python : 'unknown'
+  return Object.freeze({ artemisRoot, python, mcpRuntime: 'unobservable' })
+}
+async function resolveSetupStatus(value) {
+  try {
+    return normalizeSetupStatus(await Promise.resolve(value))
+  } catch {
+    return Object.freeze({ artemisRoot: 'invalid', python: 'unknown', mcpRuntime: 'unobservable' })
+  }
+}
 function waitForWritable(res, signal) {
   if (signal.aborted || res.destroyed) return Promise.resolve(false)
   return new Promise((resolve) => {
@@ -74,21 +89,19 @@ function waitForWritable(res, signal) {
     signal.addEventListener('abort', onAbort, { once: true })
   })
 }
-
 async function writeStreamChunk(res, chunk, signal) {
   if (signal.aborted || res.destroyed) return false
   if (res.write(chunk)) return true
   return waitForWritable(res, signal)
 }
-
 async function writeLiveFrame(res, frame, signal) {
   const header = Buffer.from(`--${LIVE_BOUNDARY}\r\nContent-Type: image/png\r\nContent-Length: ${frame.data.byteLength}\r\n\r\n`)
   if (!await writeStreamChunk(res, header, signal)) return false
   if (!await writeStreamChunk(res, Buffer.from(frame.data.buffer, frame.data.byteOffset, frame.data.byteLength), signal)) return false
   return writeStreamChunk(res, Buffer.from('\r\n'), signal)
 }
-
-export async function buildOverview(client) {
+export async function buildOverview(client, { setupStatus = DEFAULT_SETUP_STATUS } = {}) {
+  const setup = await resolveSetupStatus(setupStatus)
   let health
   try {
     health = await client.health()
@@ -97,6 +110,7 @@ export async function buildOverview(client) {
       return Object.freeze({
         version: DSH_ARTEMIS_PROTOCOL_VERSION,
         artemis: Object.freeze({ state: 'offline', status: null }),
+        setup,
         devices: Object.freeze([]),
         activeDeviceSerial: null,
         stream: Object.freeze({ connected: false }),
@@ -111,13 +125,13 @@ export async function buildOverview(client) {
   return Object.freeze({
     version: DSH_ARTEMIS_PROTOCOL_VERSION,
     artemis: Object.freeze({ state: 'ready', status: health.status }),
+    setup,
     devices,
     activeDeviceSerial,
     stream: Object.freeze(stream),
   })
 }
-
-export function createOverviewHandler(client, { requestRejection } = {}) {
+export function createOverviewHandler(client, { requestRejection, setupStatus } = {}) {
   return async (req, res) => {
     if (rejectUntrustedRequest(req, res, requestRejection)) return
     if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -125,14 +139,13 @@ export function createOverviewHandler(client, { requestRejection } = {}) {
       return
     }
     try {
-      writeJson(res, 200, await buildOverview(client), { head: req.method === 'HEAD' })
+      writeJson(res, 200, await buildOverview(client, { setupStatus }), { head: req.method === 'HEAD' })
     } catch (error) {
       const mapped = safeError(error)
       writeJson(res, mapped.status, mapped.body, { head: req.method === 'HEAD' })
     }
   }
 }
-
 export function createSnapshotHandler(client, { requestRejection } = {}) {
   return async (req, res) => {
     if (rejectUntrustedRequest(req, res, requestRejection)) return
@@ -149,7 +162,6 @@ export function createSnapshotHandler(client, { requestRejection } = {}) {
     }
   }
 }
-
 export function createLiveHandler(client, { requestRejection } = {}) {
   return async (req, res) => {
     if (rejectUntrustedRequest(req, res, requestRejection)) return
@@ -157,13 +169,11 @@ export function createLiveHandler(client, { requestRejection } = {}) {
       writeJson(res, 405, { error: { code: 'method-not-allowed', message: 'Method not allowed' } }, { extraHeaders: { allow: 'GET' } })
       return
     }
-
     const controller = new AbortController()
     const abort = () => controller.abort()
     req.once('aborted', abort)
     res.once('close', abort)
     const iterator = client.streamSnapshots({ signal: controller.signal })[Symbol.asyncIterator]()
-
     try {
       const first = await iterator.next()
       if (first.done) throw new ArtemisProtocolError('ARTEMIS live stream ended before a frame arrived', { code: 'incomplete-frame' })
@@ -196,8 +206,7 @@ export function createLiveHandler(client, { requestRejection } = {}) {
     }
   }
 }
-
-export function registerArtemisHostRoutes(ctx, client) {
+export function registerArtemisHostRoutes(ctx, client, { setupStatus } = {}) {
   if (!ctx?.webServer || typeof ctx.webServer.register !== 'function') {
     throw new TypeError('A Harness webServer service is required')
   }
@@ -209,7 +218,7 @@ export function registerArtemisHostRoutes(ctx, client) {
   }
   const requestRejection = (req) => ctx.connection.requestRejection(req)
   const disposers = [
-    ctx.webServer.register({ kind: 'exact', path: OVERVIEW_ROUTE, handler: createOverviewHandler(client, { requestRejection }) }),
+    ctx.webServer.register({ kind: 'exact', path: OVERVIEW_ROUTE, handler: createOverviewHandler(client, { requestRejection, setupStatus }) }),
     ctx.webServer.register({ kind: 'exact', path: SNAPSHOT_ROUTE, handler: createSnapshotHandler(client, { requestRejection }) }),
     ctx.webServer.register({ kind: 'exact', path: LIVE_ROUTE, handler: createLiveHandler(client, { requestRejection }) }),
   ]

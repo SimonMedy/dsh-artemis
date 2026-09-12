@@ -3,7 +3,6 @@ import { Button, Pill, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import { LIVE_MAX_RETRIES, liveEndpoint, liveRetryDelay } from './live.mjs'
 import { derivePanelState, fetchOverview, selectActiveDevice } from './overview.mjs'
 import { createSnapshotObjectUrl, fetchSnapshot } from './snapshot.mjs'
-
 const POLL_INTERVAL_MS = 5_000
 const styles = Object.freeze({
   root: { display: 'flex', flex: '1 1 auto', flexDirection: 'column', height: '100%', minHeight: 0, color: 'var(--dsw-alias-label-primary)', fontSize: 'var(--dsh-content-font-size-secondary, 13px)', lineHeight: 1.5 },
@@ -24,7 +23,6 @@ const styles = Object.freeze({
   note: { margin: 0, padding: '0 2px', color: 'var(--dsw-alias-label-tertiary)', fontSize: 12, lineHeight: 1.6 },
   warning: { margin: 0, padding: '8px 10px', color: 'var(--dsw-alias-label-secondary)', background: 'var(--dsw-alias-bg-layer-1)', border: '0.5px solid var(--dsw-alias-border-l4)', borderRadius: 10, fontSize: 12, lineHeight: 1.5 },
 })
-
 function safeMessage(error) {
   if (error instanceof Error && error.message.includes('Web profile')) return error.message
   return 'Unable to refresh Android status'
@@ -32,6 +30,36 @@ function safeMessage(error) {
 function safeSnapshotMessage(error) {
   if (error instanceof Error && error.message.includes('Web profile')) return error.message
   return 'Unable to capture Android screen'
+}
+function setupRootLabel(setup) {
+  if (setup.artemisRoot === 'validated') return 'Validated'
+  if (setup.artemisRoot === 'invalid') return 'Invalid'
+  return 'Profile-managed'
+}
+function setupPythonLabel(setup) {
+  if (setup.python === 'validated-explicit') return 'Explicit interpreter validated'
+  if (setup.python === 'invalid') return 'Invalid explicit interpreter'
+  if (setup.python === 'unknown') return 'Unknown'
+  return 'Resolved by MCP profile'
+}
+function SetupStatusCard({ overview }) {
+  const rootState = overview.setup.artemisRoot === 'invalid' || overview.setup.python === 'invalid' ? 'warning' : 'done'
+  return h('section', { style: styles.card, 'aria-label': 'ARTEMIS integration status' },
+    h('div', { style: styles.cardHeader },
+      h(StateDot, { state: rootState }),
+      h('div', { style: styles.deviceIdentity },
+        h('span', { style: styles.deviceName }, 'Integration status'),
+        h('span', { style: styles.secondary }, 'Human UI and agent MCP are independent'),
+      ),
+    ),
+    h('div', { style: styles.facts },
+      h('span', null, 'Human UI daemon'), h('span', { style: styles.factValue }, overview.artemis.state === 'ready' ? 'Ready' : 'Offline'),
+      h('span', null, 'ARTEMIS root'), h('span', { style: styles.factValue }, setupRootLabel(overview.setup)),
+      h('span', null, 'Python setup'), h('span', { style: styles.factValue }, setupPythonLabel(overview.setup)),
+      h('span', null, 'Agent MCP runtime'), h('span', { style: styles.factValue }, 'Not observable'),
+    ),
+    h('p', { style: styles.note }, 'The pinned Harness public MCP API does not expose connection state. dsh-artemis never infers MCP Connected from daemon health; configure the agent MCP in the Harness profile.'),
+  )
 }
 function DeviceCard({ overview }) {
   const device = selectActiveDevice(overview)
@@ -94,7 +122,6 @@ function ScreenPreview({ overview, previewUrl, snapshotPending, snapshotError, o
     h('p', { style: styles.note }, liveActive ? 'Live frames are human-facing and ephemeral: they are not persisted or added to model context.' : 'Captured frames are ephemeral: they are not persisted or added to model context.'),
   )
 }
-
 export function AndroidPanel() {
   const [overview, setOverview] = useState(null)
   const [pending, setPending] = useState(true)
@@ -112,7 +139,6 @@ export function AndroidPanel() {
   const snapshotHandle = useRef(null)
   const liveRetryCount = useRef(0)
   const liveRetryTimer = useRef(null)
-
   const clearLiveRetry = useCallback(() => {
     if (liveRetryTimer.current !== null) {
       globalThis.clearTimeout(liveRetryTimer.current)
@@ -157,7 +183,6 @@ export function AndroidPanel() {
       if (alive.current) setLiveNonce((value) => value + 1)
     }, liveRetryDelay(nextAttempt))
   }, [clearLiveRetry])
-
   const refresh = useCallback(async ({ silent = false } = {}) => {
     if (inFlight.current) return
     inFlight.current = true
@@ -225,7 +250,6 @@ export function AndroidPanel() {
     if (!liveActive) return
     if (!activeSerial || !streamConnected) stopLive()
   }, [activeSerial, liveActive, stopLive, streamConnected])
-
   const liveUrl = liveActive ? liveEndpoint() : null
   const headerState = overview ? derivePanelState(overview) : null
   const dot = pending && !overview ? 'ongoing' : error && !overview ? 'error' : headerState?.dot ?? 'idle'
@@ -236,6 +260,7 @@ export function AndroidPanel() {
       h(Button, { variant: 'toolbar', size: 'sm', disabled: pending, onClick: () => { void refresh() }, 'aria-label': 'Refresh Android status' }, pending ? 'Refreshing…' : 'Refresh'),
     ),
     h('div', { style: styles.body },
+      overview ? h(SetupStatusCard, { overview }) : null,
       overview ? h(DeviceCard, { overview }) : h('p', { style: styles.empty }, pending ? 'Checking ARTEMIS and Android device state…' : 'Android status is unavailable.'),
       overview ? h(ScreenPreview, {
         overview, previewUrl: snapshotUrl, snapshotPending, snapshotError, onCapture: capture,
