@@ -56,7 +56,11 @@ test('overview exposes only bounded setup enums and drops local details', async 
 })
 
 test('overview collapses failed setup inspection without exposing the rejection', async () => {
-  const setupStatus = Promise.reject(new Error('filesystem-secret-must-not-leak'))
+  const setupStatus = {
+    then(_resolve, reject) {
+      reject(new Error('filesystem-secret-must-not-leak'))
+    },
+  }
   await serve(createOverviewHandler(readyClient(), { setupStatus }), async (baseUrl) => {
     const response = await fetch(`${baseUrl}${OVERVIEW_ROUTE}`)
     const text = await response.text()
