@@ -23,7 +23,6 @@ test('loads ARTEMIS rules exactly from the validated installation', async () => 
   const content = '# Rules\n\nKeep **exact** markdown.\n'
   const root = await fakeArtemisRoot(content)
   const loaded = await loadArtemisRules(root)
-
   assert.equal(loaded.root, root)
   assert.equal(loaded.rulesPath, path.join(root, 'mcp_server', 'rules.md'))
   assert.equal(loaded.content, content)
@@ -32,10 +31,8 @@ test('loads ARTEMIS rules exactly from the validated installation', async () => 
 test('rejects empty, oversized, and invalid UTF-8 rules', async () => {
   const emptyRoot = await fakeArtemisRoot('   \n')
   await assert.rejects(loadArtemisRules(emptyRoot), /no instructions/)
-
   const largeRoot = await fakeArtemisRoot('x'.repeat(64))
   await assert.rejects(loadArtemisRules(largeRoot, { maxBytes: 32 }), /exceeds 32 bytes/)
-
   const invalidRoot = await fakeArtemisRoot('valid')
   const invalidPath = path.join(invalidRoot, 'mcp_server', 'rules.md')
   await writeFile(invalidPath, Buffer.from([0xc3, 0x28]))
@@ -46,7 +43,6 @@ test('builds a native runtime Harness skill without rewriting ARTEMIS rules', as
   const content = '# Mobile testing\n\nDiagnosis first.\n'
   const root = await fakeArtemisRoot(content)
   const skill = await buildArtemisRulesSkill({ artemisRoot: root })
-
   assert.equal(skill.name, ARTEMIS_RULES_SKILL_NAME)
   assert.equal(skill.provider, 'dsh-artemis')
   assert.equal(skill.source, 'runtime')
@@ -62,15 +58,7 @@ test('registers through Harness skills service and returns its exact disposer', 
   const root = await fakeArtemisRoot()
   const registrations = []
   const dispose = () => {}
-  const ctx = {
-    skills: {
-      register(skill) {
-        registrations.push(skill)
-        return dispose
-      },
-    },
-  }
-
+  const ctx = { skills: { register(skill) { registrations.push(skill); return dispose } } }
   assert.equal(await registerArtemisRulesSkill(ctx, { artemisRoot: root }), dispose)
   assert.equal(registrations.length, 1)
   assert.equal(registrations[0].name, ARTEMIS_RULES_SKILL_NAME)

@@ -10,7 +10,7 @@
   },
   "exports": {
     ".": "./src/index.mjs",
-    "./client": "./src/client/index.mjs",
+    "./client": "./lib/client.js",
     "./rules-skill": "./src/integration/rules-skill-plugin.mjs",
     "./package.json": "./package.json"
   },
@@ -28,6 +28,7 @@
   "files": [
     "bin/*.mjs",
     "src/**/*.mjs",
+    "lib/client.js",
     "cordis.patch.yml",
     "README.md",
     "SECURITY.md"
