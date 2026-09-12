@@ -1,5 +1,5 @@
 import { registerArtemisEvidenceRoute } from './host/artemis-evidence.mjs'
-import { ArtemisHttpClient } from './host/artemis-http.mjs'
+import { createProductArtemisHttpClient } from './host/artemis-product-client.mjs'
 import { withBrowserResponseSecurity } from './host/browser-response-security.mjs'
 import { registerArtemisHostRoutes } from './host/harness-routes.mjs'
 import { createBoundedPanelClient } from './host/panel-client-bounds.mjs'
@@ -15,7 +15,7 @@ export const inject = ['webServer', 'connection']
  * ARTEMIS adapters and named Harness routes so upstream churn stays isolated.
  */
 export function apply(ctx) {
-  const client = new ArtemisHttpClient()
+  const client = createProductArtemisHttpClient()
   const panelClient = createBoundedPanelClient(client)
   const setupStatus = inspectArtemisSetup()
   ctx.effect(
