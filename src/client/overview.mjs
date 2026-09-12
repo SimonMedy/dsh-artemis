@@ -1,4 +1,5 @@
 import { DSH_ARTEMIS_PROTOCOL_VERSION, OVERVIEW_ROUTE } from '../shared/protocol.mjs'
+import { PANEL_METADATA_LIMITS } from '../shared/panel-metadata-limits.mjs'
 
 const REQUEST_TIMEOUT_MS = 4_000
 const ROOT_STATES = new Set(['validated', 'not-supplied', 'invalid'])
@@ -10,23 +11,30 @@ function record(value, label) {
   }
   return value
 }
-function nullableString(value, label) {
+function nullableString(value, label, maxChars) {
   if (value === null) return null
   if (typeof value !== 'string') throw new Error(`${label} must be a string or null`)
   const trimmed = value.trim()
+  if (trimmed.length > maxChars) throw new Error(`${label} exceeds the supported length`)
   return trimmed || null
+}
+function requiredString(value, label, maxChars) {
+  if (typeof value !== 'string') throw new Error(`${label} must be a string`)
+  const trimmed = value.trim()
+  if (!trimmed) throw new Error(`${label} must be non-empty`)
+  if (trimmed.length > maxChars) throw new Error(`${label} exceeds the supported length`)
+  return trimmed
 }
 function device(value, index) {
   const input = record(value, `devices[${index}]`)
-  const serial = nullableString(input.serial, `devices[${index}].serial`)
-  if (!serial) throw new Error(`devices[${index}].serial must be non-empty`)
-  if (typeof input.state !== 'string' || !input.state.trim()) throw new Error(`devices[${index}].state must be non-empty`)
+  const serial = requiredString(input.serial, `devices[${index}].serial`, PANEL_METADATA_LIMITS.maxSerialChars)
+  const state = requiredString(input.state, `devices[${index}].state`, PANEL_METADATA_LIMITS.maxStateChars)
   if (typeof input.busy !== 'boolean') throw new Error(`devices[${index}].busy must be boolean`)
   return Object.freeze({
     serial,
-    state: input.state.trim().toLowerCase(),
-    model: nullableString(input.model, `devices[${index}].model`),
-    product: nullableString(input.product, `devices[${index}].product`),
+    state: state.toLowerCase(),
+    model: nullableString(input.model, `devices[${index}].model`, PANEL_METADATA_LIMITS.maxModelChars),
+    product: nullableString(input.product, `devices[${index}].product`, PANEL_METADATA_LIMITS.maxProductChars),
     busy: input.busy,
   })
 }
@@ -49,12 +57,13 @@ export function parseOverview(value) {
   if (artemis.state !== 'ready' && artemis.state !== 'offline') {
     throw new Error('artemis.state must be ready or offline')
   }
-  const status = nullableString(artemis.status, 'artemis.status')
+  const status = nullableString(artemis.status, 'artemis.status', PANEL_METADATA_LIMITS.maxStatusChars)
   const setup = setupStatus(input.setup)
 
   if (!Array.isArray(input.devices)) throw new Error('devices must be an array')
+  if (input.devices.length > PANEL_METADATA_LIMITS.maxDevices) throw new Error('devices exceeds the supported count')
   const devices = Object.freeze(input.devices.map(device))
-  const activeDeviceSerial = nullableString(input.activeDeviceSerial, 'activeDeviceSerial')
+  const activeDeviceSerial = nullableString(input.activeDeviceSerial, 'activeDeviceSerial', PANEL_METADATA_LIMITS.maxSerialChars)
   const stream = record(input.stream, 'stream')
   if (typeof stream.connected !== 'boolean') throw new Error('stream.connected must be boolean')
 

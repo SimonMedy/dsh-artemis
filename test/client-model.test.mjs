@@ -6,6 +6,8 @@ import {
   parseOverview,
   selectActiveDevice,
 } from '../src/client/overview.mjs'
+import { PANEL_METADATA_LIMITS } from '../src/shared/panel-metadata-limits.mjs'
+
 function readyOverview(overrides = {}) {
   return {
     version: 1,
@@ -57,6 +59,29 @@ test('rejects unsupported protocol, malformed setup and malformed device state',
   assert.throws(() => parseOverview(readyOverview({ setup: { artemisRoot: '/private/path', python: 'profile-managed', mcpRuntime: 'unobservable' } })), /setup.artemisRoot/)
   assert.throws(() => parseOverview(readyOverview({ setup: { artemisRoot: 'validated', python: 'profile-managed', mcpRuntime: 'connected' } })), /mcpRuntime/)
   assert.throws(() => parseOverview(readyOverview({ devices: [{ serial: '', state: 'device', busy: false }] })), /serial/)
+})
+test('browser parser independently enforces the panel metadata limits', () => {
+  const extraDevices = Array.from({ length: PANEL_METADATA_LIMITS.maxDevices + 1 }, (_, index) => ({
+    serial: `emulator-${index}`,
+    state: 'device',
+    model: null,
+    product: null,
+    busy: false,
+  }))
+  assert.throws(() => parseOverview(readyOverview({ devices: extraDevices })), /devices exceeds/)
+  assert.throws(() => parseOverview(readyOverview({ artemis: { state: 'ready', status: 'x'.repeat(PANEL_METADATA_LIMITS.maxStatusChars + 1) } })), /artemis.status/)
+  assert.throws(() => parseOverview(readyOverview({ activeDeviceSerial: 'x'.repeat(PANEL_METADATA_LIMITS.maxSerialChars + 1) })), /activeDeviceSerial/)
+
+  for (const [field, limit] of [
+    ['serial', PANEL_METADATA_LIMITS.maxSerialChars],
+    ['state', PANEL_METADATA_LIMITS.maxStateChars],
+    ['model', PANEL_METADATA_LIMITS.maxModelChars],
+    ['product', PANEL_METADATA_LIMITS.maxProductChars],
+  ]) {
+    assert.throws(() => parseOverview(readyOverview({
+      devices: [{ serial: 'emulator-5554', state: 'device', model: null, product: null, busy: false, [field]: 'x'.repeat(limit + 1) }],
+    })), new RegExp(field))
+  }
 })
 test('overview endpoint is same-origin for Web and unavailable for non-Web carriers', () => {
   assert.equal(
