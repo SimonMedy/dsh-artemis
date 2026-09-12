@@ -15,7 +15,7 @@ Last updated: 2026-09-12
 | 1.5 — explicit screenshot observation | **DONE** | Bounded snapshot route, ephemeral preview, reproducible client build and real Harness/Chromium capture merged through PR #17 |
 | 2 — live human screen | **DONE** | Bounded multi-frame transport, explicit Start/Stop viewer, reconnect budget and packaged Harness/Chromium E2E merged through PR #18 |
 | 3 — bounded device controls | **BLOCKED** | Pinned ARTEMIS has canonical Back/Home/Recents actions only in a separate broad action/ADB surface; no narrow configured-MCP/Admin transport and no canonical Rotate contract |
-| 4 — tasks, traces & visual QA | **ACTIVE** | Current branch adds bounded read-only current-task/latest-step/trace metadata with full Harness/Chromium privacy assertions |
+| 4 — tasks, traces & visual QA | **PARTIAL** | First bounded read-only current-task/latest-step/trace metadata lot merged through PR #19; read-only trace/replay drill-down + visual QA remain |
 | 5 — installation & agent experience | **PARTIAL** | MCP config + rules skill merged; setup/status UX remains |
 | 6 — autonomous mobile computer-use | **PLANNED** | Build bounded code→build→ARTEMIS→observe→verify→fix workflows |
 | 7 — compatibility & polish | **ONGOING** | Keep supported revisions backed by reproducible CI evidence |
@@ -91,9 +91,9 @@ Exit criteria remain:
 
 ## Phase 4 — tasks, traces and visual QA
 
-**Status: ACTIVE**
+**Status: PARTIAL — first bounded evidence lot merged through PR #19**
 
-Current bounded evidence batch:
+Delivered first bounded evidence lot:
 - [x] Same-origin read-only `/dsh-artemis/v1/evidence` route behind Harness connection trust.
 - [x] Server derives the active ARTEMIS session from `/api/status`; browser cannot provide a session or trace identifier.
 - [x] Expose only current task status/goal/counts plus latest step action and at most eight trace name/type/status records.
@@ -102,11 +102,11 @@ Current bounded evidence batch:
 - [x] Client independently validates the versioned project DTO and polls with same-origin/no-store semantics.
 - [x] Deterministic fixture includes deliberate secrets so E2E can prove they do not reach rendered evidence.
 
-Exit criteria for this batch:
-- [ ] Repository CI green on the exact Phase 4 PR head.
-- [ ] Generated client bundle/package/Cordis composition green against pinned Harness.
-- [ ] Real Harness/Chromium E2E proves task evidence and secret non-disclosure through the packaged generated bundle.
-- [ ] Merge to `main` before marking this batch complete.
+Validated on the exact PR #19 head and then merged to `main`:
+- [x] Repository CI green.
+- [x] Generated client bundle/package/Cordis composition green against pinned Harness.
+- [x] Real Harness/Chromium E2E proves task evidence and secret non-disclosure through the packaged generated bundle.
+- [x] Merged to `main` through PR #19.
 
 Next Phase 4 lots:
 - [ ] Add read-only trace/replay drill-down only through validated server-derived identifiers.
@@ -132,7 +132,7 @@ Remaining:
 
 **Status: PLANNED**
 
-- Bounded implement→build→install→ARTEMIS→observe→verify loops.
+- Bounded implement→build→install→ARTEMIS→observe→verify→fix loops.
 - Deterministic tests first; real-device/visual checks where behavior requires them.
 - Explicit retry/stop budgets and evidence boundaries.
 - ARTEMIS MCP remains the action authority.
@@ -154,7 +154,7 @@ Phase 2 merged and DONE
         ↓
 Phase 3 safe transport blocked on upstream narrow control contract
         ↓ (work can continue independently)
-Phase 4 bounded task/latest-step/trace evidence
+Phase 4 first bounded evidence lot merged through PR #19
         ↓
 read-only trace/replay drill-down + explicit visual QA checkpoints
         ↓
