@@ -83,15 +83,18 @@ async function readJsonWithinLimit(response, endpoint, maxBytes) {
     while (true) {
       const { value, done } = await reader.read()
       if (done) break
+      if (!(value instanceof Uint8Array)) {
+        throw new ArtemisProtocolError(`${endpoint} returned an invalid JSON response body`, { code: 'invalid-json' })
+      }
       size += value.byteLength
       if (size > maxBytes) {
-        await reader.cancel()
+        await reader.cancel().catch(() => {})
         throw new ArtemisProtocolError(`${endpoint} response exceeded the configured size limit`, { code: 'response-too-large' })
       }
       chunks.push(value)
     }
   } finally {
-    reader.releaseLock()
+    reader.releaseLock?.()
   }
   const bytes = new Uint8Array(size)
   let offset = 0
@@ -100,7 +103,7 @@ async function readJsonWithinLimit(response, endpoint, maxBytes) {
     offset += chunk.byteLength
   }
   try {
-    return JSON.parse(new TextDecoder().decode(bytes))
+    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
   } catch (cause) {
     throw new ArtemisProtocolError(`${endpoint} returned invalid JSON`, { code: 'invalid-json', cause })
   }
