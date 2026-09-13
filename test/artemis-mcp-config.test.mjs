@@ -57,7 +57,7 @@ test('uses only an explicitly supplied executable fallback Python when no ARTEMI
   )
   await assert.rejects(
     resolveArtemisPython(root, { platform: 'linux', fallbackPython: path.join(root, 'missing-python') }),
-    /unavailable or not executable/,
+    /unavailable, not a regular file, or not executable/,
   )
 })
 
@@ -73,7 +73,7 @@ test('fails closed when neither an ARTEMIS .venv nor an explicit Python is avail
   )
 })
 
-test('explicit Python must exist, be executable on POSIX and override .venv discovery', async () => {
+test('explicit Python must exist, be a regular file, be executable on POSIX and override .venv discovery', async () => {
   const root = await fakeArtemisRoot({ withPosixVenv: true })
   const explicit = path.join(root, 'custom-python')
   await writeExecutable(explicit)
@@ -84,11 +84,25 @@ test('explicit Python must exist, be executable on POSIX and override .venv disc
   await chmod(nonExecutable, 0o644)
   await assert.rejects(
     resolveArtemisPython(root, { explicitPython: nonExecutable, platform: 'linux' }),
-    /unavailable or not executable/,
+    /unavailable, not a regular file, or not executable/,
   )
   await assert.rejects(
     resolveArtemisPython(root, { explicitPython: path.join(root, 'missing'), platform: 'linux' }),
-    /unavailable or not executable/,
+    /unavailable, not a regular file, or not executable/,
+  )
+})
+
+test('Python directories are rejected as MCP executables on POSIX and Windows', async () => {
+  const root = await fakeArtemisRoot()
+  const directory = path.join(root, 'python-directory')
+  await mkdir(directory)
+  await assert.rejects(
+    resolveArtemisPython(root, { explicitPython: directory, platform: 'linux' }),
+    /not a regular file/,
+  )
+  await assert.rejects(
+    resolveArtemisPython(root, { explicitPython: directory, platform: 'win32' }),
+    /not a regular file/,
   )
 })
 
