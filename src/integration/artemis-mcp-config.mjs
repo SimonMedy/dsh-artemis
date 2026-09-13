@@ -1,5 +1,5 @@
 import { constants } from 'node:fs'
-import { access } from 'node:fs/promises'
+import { access, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 const REQUIRED_ARTEMIS_FILES = Object.freeze([
@@ -10,6 +10,21 @@ const REQUIRED_ARTEMIS_FILES = Object.freeze([
 
 async function exists(filePath, accessImpl = access, mode = constants.F_OK) {
   try {
+    await accessImpl(filePath, mode)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function isRunnableFile(filePath, {
+  accessImpl = access,
+  statImpl = stat,
+  mode = constants.F_OK,
+} = {}) {
+  try {
+    const info = await statImpl(filePath)
+    if (!info?.isFile?.()) return false
     await accessImpl(filePath, mode)
     return true
   } catch {
@@ -43,15 +58,21 @@ export async function resolveArtemisPython(
     platform = process.platform,
     fallbackPython,
     accessImpl = access,
+    statImpl = stat,
   } = {},
 ) {
   const accessMode = pythonAccessMode(platform)
+  const availablePython = (filePath) => isRunnableFile(filePath, {
+    accessImpl,
+    statImpl,
+    mode: accessMode,
+  })
 
   if (explicitPython !== undefined) {
     if (typeof explicitPython !== 'string' || !explicitPython.trim()) throw new TypeError('Explicit ARTEMIS Python path is invalid')
     const resolved = path.resolve(explicitPython)
-    if (!(await exists(resolved, accessImpl, accessMode))) {
-      throw new Error('Explicit ARTEMIS Python executable is unavailable or not executable')
+    if (!(await availablePython(resolved))) {
+      throw new Error('Explicit ARTEMIS Python executable is unavailable, not a regular file, or not executable')
     }
     return resolved
   }
@@ -59,13 +80,13 @@ export async function resolveArtemisPython(
   const venvPython = platform === 'win32'
     ? path.join(artemisRoot, '.venv', 'Scripts', 'python.exe')
     : path.join(artemisRoot, '.venv', 'bin', 'python')
-  if (await exists(venvPython, accessImpl, accessMode)) return venvPython
+  if (await availablePython(venvPython)) return venvPython
 
   if (fallbackPython !== undefined) {
     if (typeof fallbackPython !== 'string' || !fallbackPython.trim()) throw new TypeError('Fallback ARTEMIS Python path is invalid')
     const resolved = path.resolve(fallbackPython)
-    if (!(await exists(resolved, accessImpl, accessMode))) {
-      throw new Error('Fallback ARTEMIS Python executable is unavailable or not executable')
+    if (!(await availablePython(resolved))) {
+      throw new Error('Fallback ARTEMIS Python executable is unavailable, not a regular file, or not executable')
     }
     return resolved
   }
@@ -79,6 +100,7 @@ export async function buildHarnessMcpRow({
   platform = process.platform,
   fallbackPython,
   accessImpl = access,
+  statImpl = stat,
 } = {}) {
   const root = await validateArtemisRoot(artemisRoot, { accessImpl })
   const python = await resolveArtemisPython(root, {
@@ -86,6 +108,7 @@ export async function buildHarnessMcpRow({
     platform,
     fallbackPython,
     accessImpl,
+    statImpl,
   })
 
   return Object.freeze({
