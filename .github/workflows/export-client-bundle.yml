@@ -38,12 +38,19 @@ jobs:
       - name: Enable pinned pnpm
         run: |
           corepack enable
-          corepack prepare "pnpm@${PNPM_VERSION}" --activate
+          corepack prepare "pnpm@${PNPM_VERSION}" --activate >/dev/null 2>&1
       - name: Install and build pinned DeepSeek Harness
         working-directory: deepseek-harness
         run: |
-          pnpm install --frozen-lockfile >/dev/null
-          pnpm run build >/dev/null
+          set -e
+          pnpm install --frozen-lockfile >"$RUNNER_TEMP/harness-install.log" 2>&1 || {
+            tail -n 80 "$RUNNER_TEMP/harness-install.log"
+            exit 1
+          }
+          pnpm run build >"$RUNNER_TEMP/harness-build.log" 2>&1 || {
+            tail -n 80 "$RUNNER_TEMP/harness-build.log"
+            exit 1
+          }
       - name: Rebuild and export dsh-artemis client bundle
         working-directory: dsh-artemis
         env:
@@ -51,8 +58,15 @@ jobs:
           DSH_HARNESS_SHA: ${{ env.HARNESS_SHA }}
           DSH_ARTEMIS_CLIENT_OUT_DIR: ${{ github.workspace }}/dsh-artemis/lib
         run: |
-          npm run bundle:client >/dev/null
-          node --test test/client-bundle.test.mjs >/dev/null
+          set -e
+          npm run bundle:client >"$RUNNER_TEMP/client-build.log" 2>&1 || {
+            tail -n 80 "$RUNNER_TEMP/client-build.log"
+            exit 1
+          }
+          node --test test/client-bundle.test.mjs >"$RUNNER_TEMP/client-test.log" 2>&1 || {
+            tail -n 80 "$RUNNER_TEMP/client-test.log"
+            exit 1
+          }
           echo "CLIENT_BUNDLE_BASE64_BEGIN"
           base64 -w0 lib/client.js
           echo
