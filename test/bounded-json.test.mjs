@@ -24,6 +24,24 @@ test('rejects an oversized declared content length', async () => {
   )
 })
 
+test('rejects a non-streamable body without falling back to full-body allocation', async () => {
+  let arrayBufferCalled = false
+  const response = {
+    headers: {
+      get(name) {
+        return name.toLowerCase() === 'content-type' ? 'application/json' : null
+      },
+    },
+    body: null,
+    async arrayBuffer() {
+      arrayBufferCalled = true
+      throw new Error('arrayBuffer must never be called')
+    },
+  }
+  await assert.rejects(readBoundedJsonResponse(response, { maxBytes: 32 }), /non-streamable response body/)
+  assert.equal(arrayBufferCalled, false)
+})
+
 test('rejects an oversized streamed body even without content length', async () => {
   const body = new ReadableStream({
     start(controller) {
