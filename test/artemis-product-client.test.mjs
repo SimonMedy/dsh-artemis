@@ -8,7 +8,7 @@ import {
 function rejectsNonLiteralLoopback(value) {
   assert.throws(
     () => resolveProductArtemisBaseUrl(value),
-    (error) => error?.code === 'non-literal-loopback-base-url',
+    (error) => error?.code === 'non-loopback-base-url',
   )
 }
 
