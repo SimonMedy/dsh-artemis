@@ -8,16 +8,7 @@ const REQUIRED_ARTEMIS_FILES = Object.freeze([
   path.join('mcp_server', 'rules.md'),
 ])
 
-async function exists(filePath, accessImpl = access, mode = constants.F_OK) {
-  try {
-    await accessImpl(filePath, mode)
-    return true
-  } catch {
-    return false
-  }
-}
-
-async function isRunnableFile(filePath, {
+async function isRegularFile(filePath, {
   accessImpl = access,
   statImpl = stat,
   mode = constants.F_OK,
@@ -36,17 +27,23 @@ function pythonAccessMode(platform) {
   return platform === 'win32' ? constants.F_OK : constants.X_OK
 }
 
-export async function validateArtemisRoot(root, { accessImpl = access } = {}) {
+export async function validateArtemisRoot(
+  root,
+  {
+    accessImpl = access,
+    statImpl = stat,
+  } = {},
+) {
   if (typeof root !== 'string' || !root.trim()) throw new TypeError('ARTEMIS root is required')
   if (!path.isAbsolute(root)) throw new TypeError('ARTEMIS root must be an absolute path')
   const resolved = path.normalize(root)
 
-  const missing = []
+  const invalid = []
   for (const relative of REQUIRED_ARTEMIS_FILES) {
-    if (!(await exists(path.join(resolved, relative), accessImpl))) missing.push(relative)
+    if (!(await isRegularFile(path.join(resolved, relative), { accessImpl, statImpl }))) invalid.push(relative)
   }
-  if (missing.length > 0) {
-    throw new Error(`ARTEMIS root is missing required files: ${missing.join(', ')}`)
+  if (invalid.length > 0) {
+    throw new Error(`ARTEMIS root is missing required regular files: ${invalid.join(', ')}`)
   }
   return resolved
 }
@@ -62,7 +59,7 @@ export async function resolveArtemisPython(
   } = {},
 ) {
   const accessMode = pythonAccessMode(platform)
-  const availablePython = (filePath) => isRunnableFile(filePath, {
+  const availablePython = (filePath) => isRegularFile(filePath, {
     accessImpl,
     statImpl,
     mode: accessMode,
@@ -102,7 +99,7 @@ export async function buildHarnessMcpRow({
   accessImpl = access,
   statImpl = stat,
 } = {}) {
-  const root = await validateArtemisRoot(artemisRoot, { accessImpl })
+  const root = await validateArtemisRoot(artemisRoot, { accessImpl, statImpl })
   const python = await resolveArtemisPython(root, {
     explicitPython: pythonExecutable,
     platform,
