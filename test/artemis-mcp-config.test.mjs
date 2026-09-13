@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { chmod, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -33,12 +33,16 @@ async function fakeArtemisRoot({ withPosixVenv = false, withWindowsVenv = false 
   return root
 }
 
+function escaped(value) {
+  return new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+}
+
 test('validates an explicit absolute ARTEMIS root instead of scanning arbitrary locations', async () => {
   const root = await fakeArtemisRoot()
   assert.equal(await validateArtemisRoot(root), path.normalize(root))
   await assert.rejects(validateArtemisRoot('../relative-artemis'), /absolute path/)
   const invalid = await mkdtemp(path.join(os.tmpdir(), 'not-artemis-'))
-  await assert.rejects(validateArtemisRoot(invalid), /missing required regular files/)
+  await assert.rejects(validateArtemisRoot(invalid), /missing required non-symlink regular files/)
 })
 
 test('requires every ARTEMIS root marker to be a regular file', async (t) => {
@@ -48,10 +52,21 @@ test('requires every ARTEMIS root marker to be a regular file', async (t) => {
       const marker = path.join(root, relative)
       await rm(marker)
       await mkdir(marker)
-      await assert.rejects(
-        validateArtemisRoot(root),
-        new RegExp(relative.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
-      )
+      await assert.rejects(validateArtemisRoot(root), escaped(relative))
+    })
+  }
+})
+
+test('rejects symlinked ARTEMIS root markers even when targets are regular files', async (t) => {
+  for (const relative of artemisMcpRequiredFiles) {
+    await t.test(relative, async () => {
+      const root = await fakeArtemisRoot()
+      const marker = path.join(root, relative)
+      const target = path.join(root, `symlink-target-${path.basename(relative)}`)
+      await writeFile(target, 'safe target\n')
+      await rm(marker)
+      await symlink(target, marker)
+      await assert.rejects(validateArtemisRoot(root), escaped(relative))
     })
   }
 })
@@ -120,6 +135,15 @@ test('Python directories are rejected as MCP executables on POSIX and Windows', 
     resolveArtemisPython(root, { explicitPython: directory, platform: 'win32' }),
     /not a regular file/,
   )
+})
+
+test('POSIX Python symlinks remain supported when they resolve to executable regular files', async () => {
+  const root = await fakeArtemisRoot()
+  const target = path.join(root, 'python-target')
+  const link = path.join(root, 'python-link')
+  await writeExecutable(target)
+  await symlink(target, link)
+  assert.equal(await resolveArtemisPython(root, { explicitPython: link, platform: 'linux' }), link)
 })
 
 test('non-executable POSIX .venv Python is not accepted as a runnable MCP command', async () => {
