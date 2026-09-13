@@ -1,3 +1,4 @@
+import { constants } from 'node:fs'
 import { access } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -7,13 +8,17 @@ const REQUIRED_ARTEMIS_FILES = Object.freeze([
   path.join('mcp_server', 'rules.md'),
 ])
 
-async function exists(filePath, accessImpl = access) {
+async function exists(filePath, accessImpl = access, mode = constants.F_OK) {
   try {
-    await accessImpl(filePath)
+    await accessImpl(filePath, mode)
     return true
   } catch {
     return false
   }
+}
+
+function pythonAccessMode(platform) {
+  return platform === 'win32' ? constants.F_OK : constants.X_OK
 }
 
 export async function validateArtemisRoot(root, { accessImpl = access } = {}) {
@@ -40,22 +45,28 @@ export async function resolveArtemisPython(
     accessImpl = access,
   } = {},
 ) {
+  const accessMode = pythonAccessMode(platform)
+
   if (explicitPython !== undefined) {
     if (typeof explicitPython !== 'string' || !explicitPython.trim()) throw new TypeError('Explicit ARTEMIS Python path is invalid')
     const resolved = path.resolve(explicitPython)
-    if (!(await exists(resolved, accessImpl))) throw new Error('Explicit ARTEMIS Python executable does not exist')
+    if (!(await exists(resolved, accessImpl, accessMode))) {
+      throw new Error('Explicit ARTEMIS Python executable is unavailable or not executable')
+    }
     return resolved
   }
 
   const venvPython = platform === 'win32'
     ? path.join(artemisRoot, '.venv', 'Scripts', 'python.exe')
     : path.join(artemisRoot, '.venv', 'bin', 'python')
-  if (await exists(venvPython, accessImpl)) return venvPython
+  if (await exists(venvPython, accessImpl, accessMode)) return venvPython
 
   if (fallbackPython !== undefined) {
     if (typeof fallbackPython !== 'string' || !fallbackPython.trim()) throw new TypeError('Fallback ARTEMIS Python path is invalid')
     const resolved = path.resolve(fallbackPython)
-    if (!(await exists(resolved, accessImpl))) throw new Error('Fallback ARTEMIS Python executable does not exist')
+    if (!(await exists(resolved, accessImpl, accessMode))) {
+      throw new Error('Fallback ARTEMIS Python executable is unavailable or not executable')
+    }
     return resolved
   }
 
