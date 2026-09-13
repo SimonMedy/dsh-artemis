@@ -6,6 +6,8 @@ on:
       - "src/host/**"
       - "src/shared/**"
       - "scripts/smoke-real-artemis-daemon.mjs"
+      - "scripts/summarize-artemis-log.mjs"
+      - "test/artemis-log-summary.test.mjs"
       - "docs/upstreams.md"
       - ".github/workflows/artemis-compat.yml"
   workflow_dispatch:
@@ -57,26 +59,21 @@ jobs:
               exit 0
             fi
             if ! kill -0 "$(cat "$RUNNER_TEMP/real-artemis.pid")" 2>/dev/null; then
-              echo "::error title=ARTEMIS daemon exited during startup::Showing final daemon lines"
-              tail -n 120 "$RUNNER_TEMP/real-artemis.log"
+              echo "::error title=ARTEMIS daemon exited during startup::Daemon exited before becoming ready; see bounded log summary below"
               exit 1
             fi
             sleep 0.5
           done
-          echo "::error title=ARTEMIS daemon startup timeout::Daemon did not become ready within 60 seconds"
-          tail -n 120 "$RUNNER_TEMP/real-artemis.log"
+          echo "::error title=ARTEMIS daemon startup timeout::Daemon did not become ready within 60 seconds; see bounded log summary below"
           exit 1
       - name: Exercise dsh-artemis against the real pinned daemon
         working-directory: dsh-artemis
         env:
           ARTEMIS_BASE_URL: http://127.0.0.1:8000
         run: node scripts/smoke-real-artemis-daemon.mjs
-      - name: Show ARTEMIS daemon log on failure
+      - name: Show bounded ARTEMIS daemon log summary on failure
         if: failure()
-        run: |
-          if [ -f "$RUNNER_TEMP/real-artemis.log" ]; then
-            tail -n 160 "$RUNNER_TEMP/real-artemis.log"
-          fi
+        run: node dsh-artemis/scripts/summarize-artemis-log.mjs "$RUNNER_TEMP/real-artemis.log"
       - name: Stop real ARTEMIS daemon
         if: always()
         run: |
