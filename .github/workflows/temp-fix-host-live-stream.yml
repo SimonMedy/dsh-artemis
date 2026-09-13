@@ -1,0 +1,34 @@
+name: TEMP patch Host live stream
+
+on:
+  push:
+    branches:
+      - gpt/phase-7-host-live-stream-integrity
+    paths:
+      - .github/workflows/temp-fix-host-live-stream.yml
+      - .github/temp/patch-host-live-stream.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout dsh-artemis
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+          path: dsh-artemis
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22.20.0
+      - name: Apply exact Host live-stream patch atomically
+        working-directory: dsh-artemis
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_PARENT: ${{ github.sha }}
+          TARGET_BRANCH: ${{ github.ref_name }}
+        run: node .github/temp/patch-host-live-stream.mjs
