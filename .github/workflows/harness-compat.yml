@@ -1,5 +1,4 @@
 name: Harness compatibility
-
 on:
   pull_request:
     paths:
@@ -210,7 +209,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dsh-artemis-browser-e2e-failure
-          path: ${{ runner.temp }}/dsh-artemis-e2e
+          path: ${{ runner.temp }}/dsh-artemis-e2e/native-panel-failure.png
           if-no-files-found: ignore
           retention-days: 3
       - name: Stop local test services
