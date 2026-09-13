@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -37,6 +37,7 @@ test('validates explicit Python only when a root is also configured', async () =
   const root = await fakeRoot()
   const python = path.join(root, 'python')
   await writeFile(python, '')
+  await chmod(python, 0o755)
   assert.deepEqual(await inspectArtemisSetup({ env: { ARTEMIS_ROOT: root, ARTEMIS_PYTHON: python } }), {
     artemisRoot: 'validated',
     python: 'validated-explicit',
@@ -44,6 +45,18 @@ test('validates explicit Python only when a root is also configured', async () =
   })
   assert.deepEqual(await inspectArtemisSetup({ env: { ARTEMIS_PYTHON: python } }), {
     artemisRoot: 'invalid',
+    python: 'invalid',
+    mcpRuntime: 'unobservable',
+  })
+})
+
+test('non-executable explicit Python collapses to invalid setup state', async () => {
+  const root = await fakeRoot()
+  const python = path.join(root, 'python')
+  await writeFile(python, '')
+  await chmod(python, 0o644)
+  assert.deepEqual(await inspectArtemisSetup({ env: { ARTEMIS_ROOT: root, ARTEMIS_PYTHON: python } }), {
+    artemisRoot: 'validated',
     python: 'invalid',
     mcpRuntime: 'unobservable',
   })

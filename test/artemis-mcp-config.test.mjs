@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -10,6 +10,11 @@ import {
   validateArtemisRoot,
 } from '../src/integration/artemis-mcp-config.mjs'
 
+async function writeExecutable(filePath) {
+  await writeFile(filePath, '')
+  await chmod(filePath, 0o755)
+}
+
 async function fakeArtemisRoot({ withPosixVenv = false, withWindowsVenv = false } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'dsh-artemis-mcp-'))
   await mkdir(path.join(root, 'mcp_server'), { recursive: true })
@@ -18,7 +23,7 @@ async function fakeArtemisRoot({ withPosixVenv = false, withWindowsVenv = false 
   await writeFile(path.join(root, 'mcp_server', 'rules.md'), '# rules\n')
   if (withPosixVenv) {
     await mkdir(path.join(root, '.venv', 'bin'), { recursive: true })
-    await writeFile(path.join(root, '.venv', 'bin', 'python'), '')
+    await writeExecutable(path.join(root, '.venv', 'bin', 'python'))
   }
   if (withWindowsVenv) {
     await mkdir(path.join(root, '.venv', 'Scripts'), { recursive: true })
@@ -42,17 +47,17 @@ test('resolves ARTEMIS Python from the local .venv on supported platforms', asyn
   assert.equal(await resolveArtemisPython(windows, { platform: 'win32' }), path.join(windows, '.venv', 'Scripts', 'python.exe'))
 })
 
-test('uses only an explicitly supplied fallback Python when no ARTEMIS .venv exists', async () => {
+test('uses only an explicitly supplied executable fallback Python when no ARTEMIS .venv exists', async () => {
   const root = await fakeArtemisRoot()
   const fallback = path.join(root, 'fallback-python')
-  await writeFile(fallback, '')
+  await writeExecutable(fallback)
   assert.equal(
     await resolveArtemisPython(root, { platform: 'linux', fallbackPython: fallback }),
     path.resolve(fallback),
   )
   await assert.rejects(
     resolveArtemisPython(root, { platform: 'linux', fallbackPython: path.join(root, 'missing-python') }),
-    /Fallback ARTEMIS Python executable does not exist/,
+    /unavailable or not executable/,
   )
 })
 
@@ -68,12 +73,35 @@ test('fails closed when neither an ARTEMIS .venv nor an explicit Python is avail
   )
 })
 
-test('explicit Python must exist and overrides .venv discovery', async () => {
+test('explicit Python must exist, be executable on POSIX and override .venv discovery', async () => {
   const root = await fakeArtemisRoot({ withPosixVenv: true })
   const explicit = path.join(root, 'custom-python')
-  await writeFile(explicit, '')
-  assert.equal(await resolveArtemisPython(root, { explicitPython: explicit }), explicit)
-  await assert.rejects(resolveArtemisPython(root, { explicitPython: path.join(root, 'missing') }), /does not exist/)
+  await writeExecutable(explicit)
+  assert.equal(await resolveArtemisPython(root, { explicitPython: explicit, platform: 'linux' }), explicit)
+
+  const nonExecutable = path.join(root, 'non-executable-python')
+  await writeFile(nonExecutable, '')
+  await chmod(nonExecutable, 0o644)
+  await assert.rejects(
+    resolveArtemisPython(root, { explicitPython: nonExecutable, platform: 'linux' }),
+    /unavailable or not executable/,
+  )
+  await assert.rejects(
+    resolveArtemisPython(root, { explicitPython: path.join(root, 'missing'), platform: 'linux' }),
+    /unavailable or not executable/,
+  )
+})
+
+test('non-executable POSIX .venv Python is not accepted as a runnable MCP command', async () => {
+  const root = await fakeArtemisRoot()
+  await mkdir(path.join(root, '.venv', 'bin'), { recursive: true })
+  const python = path.join(root, '.venv', 'bin', 'python')
+  await writeFile(python, '')
+  await chmod(python, 0o644)
+  await assert.rejects(
+    resolveArtemisPython(root, { platform: 'linux' }),
+    /No ARTEMIS Python executable is available/,
+  )
 })
 
 test('builds the Harness MCP row using the same stdio process contract as ARTEMIS installer', async () => {
