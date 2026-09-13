@@ -45,11 +45,7 @@ export async function readBoundedJsonResponse(response, {
   assertDeclaredLength(response, maxBytes, label)
 
   const reader = response?.body?.getReader?.()
-  if (!reader) {
-    const buffer = new Uint8Array(await response.arrayBuffer())
-    if (buffer.byteLength > maxBytes) throw new Error(`${label} exceeded the response size limit`)
-    return parseJsonBytes(buffer, label)
-  }
+  if (!reader) throw new Error(`${label} returned a non-streamable response body`)
 
   const chunks = []
   let total = 0
