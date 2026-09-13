@@ -6,6 +6,11 @@ import test from 'node:test'
 
 const workflowsDir = fileURLToPath(new URL('../.github/workflows/', import.meta.url))
 const IMMUTABLE_SHA = /^[0-9a-f]{40}$/i
+const AUDITED_NODE24_ACTIONS = Object.freeze({
+  'actions/checkout': 'fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09',
+  'actions/setup-node': 'a0853c24544627f65ddf259abe73b1d18a591444',
+})
+
 function externalActionUses(source) {
   return [...source.matchAll(/^\s*uses:\s*([^\s#]+)(?:\s+#.*)?$/gm)]
     .map((match) => match[1])
@@ -40,6 +45,25 @@ test('third-party GitHub Actions are pinned to immutable full commit SHAs', asyn
       )
     }
   }
+})
+
+test('audited JavaScript Actions stay on the reviewed Node 24 revisions', async () => {
+  const files = (await readdir(workflowsDir))
+    .filter((name) => name.endsWith('.yml') || name.endsWith('.yaml'))
+    .sort()
+  const seen = new Set()
+  for (const file of files) {
+    const source = await readFile(path.join(workflowsDir, file), 'utf8')
+    for (const action of externalActionUses(source)) {
+      const at = action.lastIndexOf('@')
+      const name = action.slice(0, at)
+      const expected = AUDITED_NODE24_ACTIONS[name]
+      if (!expected) continue
+      seen.add(name)
+      assert.equal(action.slice(at + 1), expected, `${file}: ${name} must use the audited Node 24 revision`)
+    }
+  }
+  assert.deepEqual(seen, new Set(Object.keys(AUDITED_NODE24_ACTIONS)))
 })
 
 test('actions/checkout never persists GitHub credentials into worktrees', async () => {
