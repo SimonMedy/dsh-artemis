@@ -12,7 +12,6 @@ on:
 
 permissions:
   contents: read
-
 env:
   ARTEMIS_SHA: 086078819209c7139d6f833cfdc6d5cc80d9f19a
   UV_VERSION: 0.7.20
@@ -22,12 +21,12 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout dsh-artemis
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
           path: dsh-artemis
       - name: Checkout pinned ARTEMIS
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
           repository: google/artemis
