@@ -35,15 +35,16 @@ async function readResponseBytes(response, maxBytes) {
     while (true) {
       const { value, done } = await reader.read()
       if (done) break
+      if (!(value instanceof Uint8Array)) throw new Error('Android snapshot returned an invalid response body')
       size += value.byteLength
       if (size > maxBytes) {
-        await reader.cancel()
+        await reader.cancel().catch(() => {})
         throw new Error('Android snapshot exceeded the browser size limit')
       }
       chunks.push(value)
     }
   } finally {
-    reader.releaseLock()
+    reader.releaseLock?.()
   }
   if (size === 0) throw new Error('Android snapshot returned an empty body')
   const data = new Uint8Array(size)
