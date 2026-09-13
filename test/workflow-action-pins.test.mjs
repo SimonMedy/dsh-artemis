@@ -17,14 +17,7 @@ function checkoutBlocks(source) {
   const blocks = []
   for (let index = 0; index < lines.length; index += 1) {
     if (!/^\s*uses:\s*actions\/checkout@/.test(lines[index])) continue
-    const indent = lines[index].match(/^\s*/)?.[0].length ?? 0
-    const block = [lines[index]]
-    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
-      const line = lines[cursor]
-      if (line.trim() && (line.match(/^\s*/)?.[0].length ?? 0) <= indent) break
-      block.push(line)
-    }
-    blocks.push(block.join('\n'))
+    blocks.push(lines.slice(index, index + 8).join('\n'))
   }
   return blocks
 }
