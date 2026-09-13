@@ -18,7 +18,7 @@ test('summarizes ARTEMIS daemon logs without reproducing raw content', async () 
   await writeFile(log, [
     `INFO device=${secretSerial} path=${secretPath}`,
     `WARNING upstream=${secretUrl}`,
-    'ERROR adb transport unavailable',
+    'RuntimeError: adb transport unavailable',
     'Traceback: private stack details',
     'RuntimeException: hidden details',
     '',
@@ -30,7 +30,7 @@ test('summarizes ARTEMIS daemon logs without reproducing raw content', async () 
   assert.equal(summary.errors, 1)
   assert.equal(summary.warnings, 1)
   assert.equal(summary.traceback, true)
-  assert.equal(summary.exception, false)
+  assert.equal(summary.exception, true)
   assert.equal(summary.adb, true)
 
   const output = formatArtemisLogSummary(summary)
@@ -42,10 +42,11 @@ test('summarizes ARTEMIS daemon logs without reproducing raw content', async () 
 test('CLI output never echoes daemon paths, URLs or device identifiers', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'dsh-artemis-log-cli-'))
   const log = path.join(root, 'real-artemis.log')
-  await writeFile(log, 'ERROR device=SERIAL-SECRET url=https://secret.invalid path=/private/path\n')
+  await writeFile(log, 'RuntimeError device=SERIAL-SECRET url=https://secret.invalid path=/private/path\n')
   const result = spawnSync(process.execPath, [scriptPath, log], { encoding: 'utf8' })
   assert.equal(result.status, 0)
   assert.match(result.stdout, /^\[dsh-artemis-real-daemon\] log-summary /)
+  assert.match(result.stdout, /errors=1/)
   assert.equal(result.stdout.includes('SERIAL-SECRET'), false)
   assert.equal(result.stdout.includes('https://secret.invalid'), false)
   assert.equal(result.stdout.includes('/private/path'), false)

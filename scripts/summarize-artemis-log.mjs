@@ -48,10 +48,10 @@ export async function summarizeArtemisLog(filePath) {
   try {
     for await (const line of lines) {
       summary.lines = increment(summary.lines)
-      if (/\berror\b/i.test(line)) summary.errors = increment(summary.errors)
-      if (/\bwarn(?:ing)?\b/i.test(line)) summary.warnings = increment(summary.warnings)
-      if (/\btraceback\b/i.test(line)) summary.traceback = true
-      if (/\bexception\b/i.test(line)) summary.exception = true
+      if (/error/i.test(line)) summary.errors = increment(summary.errors)
+      if (/warn/i.test(line)) summary.warnings = increment(summary.warnings)
+      if (/traceback/i.test(line)) summary.traceback = true
+      if (/exception/i.test(line)) summary.exception = true
       if (/\badb\b/i.test(line)) summary.adb = true
     }
   } finally {
