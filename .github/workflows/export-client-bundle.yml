@@ -20,6 +20,8 @@ jobs:
   export-bundle:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      chunks: ${{ steps.encode.outputs.chunks }}
     steps:
       - name: Checkout dsh-artemis
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -51,7 +53,7 @@ jobs:
             tail -n 80 "$RUNNER_TEMP/harness-build.log"
             exit 1
           }
-      - name: Rebuild and export dsh-artemis client bundle
+      - name: Rebuild dsh-artemis client bundle
         working-directory: dsh-artemis
         env:
           DSH_HARNESS_ROOT: ${{ github.workspace }}/deepseek-harness
@@ -67,7 +69,36 @@ jobs:
             tail -n 80 "$RUNNER_TEMP/client-test.log"
             exit 1
           }
-          echo "CLIENT_BUNDLE_BASE64_BEGIN"
-          base64 -w0 lib/client.js
-          echo
-          echo "CLIENT_BUNDLE_BASE64_END"
+      - name: Encode generated bundle into bounded job-name chunks
+        id: encode
+        working-directory: dsh-artemis
+        run: |
+          python3 - <<'PY'
+          import base64
+          import gzip
+          import json
+          import os
+          from pathlib import Path
+
+          raw = Path("lib/client.js").read_bytes()
+          encoded = base64.b64encode(gzip.compress(raw, compresslevel=9, mtime=0)).decode("ascii")
+          size = 180
+          chunks = [{"i": index, "data": encoded[offset:offset + size]}
+                    for index, offset in enumerate(range(0, len(encoded), size))]
+          if len(chunks) > 256:
+              raise SystemExit(f"bundle requires too many matrix chunks: {len(chunks)}")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write("chunks=" + json.dumps(chunks, separators=(",", ":")) + "\n")
+          PY
+
+  expose-chunks:
+    needs: export-bundle
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 32
+      matrix:
+        include: ${{ fromJSON(needs.export-bundle.outputs.chunks) }}
+    name: bundle-chunk-${{ matrix.i }}-${{ matrix.data }}
+    steps:
+      - run: "true"
