@@ -36,7 +36,7 @@ export async function resolveArtemisPython(
   {
     explicitPython,
     platform = process.platform,
-    fallbackPython = process.execPath,
+    fallbackPython,
     accessImpl = access,
   } = {},
 ) {
@@ -52,15 +52,21 @@ export async function resolveArtemisPython(
     : path.join(artemisRoot, '.venv', 'bin', 'python')
   if (await exists(venvPython, accessImpl)) return venvPython
 
-  if (typeof fallbackPython !== 'string' || !fallbackPython.trim()) throw new Error('No fallback Python executable is available')
-  return path.resolve(fallbackPython)
+  if (fallbackPython !== undefined) {
+    if (typeof fallbackPython !== 'string' || !fallbackPython.trim()) throw new TypeError('Fallback ARTEMIS Python path is invalid')
+    const resolved = path.resolve(fallbackPython)
+    if (!(await exists(resolved, accessImpl))) throw new Error('Fallback ARTEMIS Python executable does not exist')
+    return resolved
+  }
+
+  throw new Error('No ARTEMIS Python executable is available; create the ARTEMIS .venv or pass --python / set ARTEMIS_PYTHON')
 }
 
 export async function buildHarnessMcpRow({
   artemisRoot,
   pythonExecutable,
   platform = process.platform,
-  fallbackPython = process.execPath,
+  fallbackPython,
   accessImpl = access,
 } = {}) {
   const root = await validateArtemisRoot(artemisRoot, { accessImpl })
