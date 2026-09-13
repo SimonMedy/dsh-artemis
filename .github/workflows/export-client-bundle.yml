@@ -1,4 +1,4 @@
-name: Export client bundle (temporary)
+name: Synchronize client bundle (temporary)
 
 on:
   pull_request:
@@ -10,22 +10,22 @@ on:
       - ".github/workflows/export-client-bundle.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   HARNESS_SHA: c291e7961a515f6d7af9304e7fd1d257929aef26
   PNPM_VERSION: 11.7.0
 
 jobs:
-  export-bundle:
+  synchronize-bundle:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'gpt/phase-7-sync-client-bundle'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    outputs:
-      chunks: ${{ steps.encode.outputs.chunks }}
     steps:
-      - name: Checkout dsh-artemis
+      - name: Checkout dsh-artemis working branch
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.head_ref }}
           path: dsh-artemis
       - name: Checkout pinned DeepSeek Harness
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -53,7 +53,7 @@ jobs:
             tail -n 80 "$RUNNER_TEMP/harness-build.log"
             exit 1
           }
-      - name: Rebuild dsh-artemis client bundle
+      - name: Rebuild and commit only the generated client bundle
         working-directory: dsh-artemis
         env:
           DSH_HARNESS_ROOT: ${{ github.workspace }}/deepseek-harness
@@ -61,44 +61,20 @@ jobs:
           DSH_ARTEMIS_CLIENT_OUT_DIR: ${{ github.workspace }}/dsh-artemis/lib
         run: |
           set -e
+          test "$GITHUB_HEAD_REF" = "gpt/phase-7-sync-client-bundle"
           npm run bundle:client >"$RUNNER_TEMP/client-build.log" 2>&1 || {
             tail -n 80 "$RUNNER_TEMP/client-build.log"
             exit 1
           }
-          node --test test/client-bundle.test.mjs >"$RUNNER_TEMP/client-test.log" 2>&1 || {
-            tail -n 80 "$RUNNER_TEMP/client-test.log"
-            exit 1
-          }
-      - name: Encode generated bundle into bounded job-name chunks
-        id: encode
-        working-directory: dsh-artemis
-        run: |
-          python3 - <<'PY'
-          import base64
-          import gzip
-          import json
-          import os
-          from pathlib import Path
-
-          raw = Path("lib/client.js").read_bytes()
-          encoded = base64.b64encode(gzip.compress(raw, compresslevel=9, mtime=0)).decode("ascii")
-          size = 180
-          chunks = [{"i": index, "data": encoded[offset:offset + size]}
-                    for index, offset in enumerate(range(0, len(encoded), size))]
-          if len(chunks) > 256:
-              raise SystemExit(f"bundle requires too many matrix chunks: {len(chunks)}")
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
-              handle.write("chunks=" + json.dumps(chunks, separators=(",", ":")) + "\n")
-          PY
-
-  expose-chunks:
-    needs: export-bundle
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      max-parallel: 32
-      matrix:
-        include: ${{ fromJSON(needs.export-bundle.outputs.chunks) }}
-    name: bundle-chunk-${{ matrix.i }}-${{ matrix.data }}
-    steps:
-      - run: "true"
+          node --test test/client-bundle.test.mjs
+          if git diff --quiet -- lib/client.js; then
+            echo "Generated bundle already matches the branch"
+            exit 0
+          fi
+          git status --short
+          test "$(git status --short | awk '{print $2}' | grep -vc '^lib/client.js$')" -eq 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- lib/client.js
+          git commit -m "build: synchronize generated client bundle"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
