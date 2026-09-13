@@ -30,18 +30,42 @@ async function fakeArtemisRoot({ withPosixVenv = false, withWindowsVenv = false 
 test('validates an explicit absolute ARTEMIS root instead of scanning arbitrary locations', async () => {
   const root = await fakeArtemisRoot()
   assert.equal(await validateArtemisRoot(root), path.normalize(root))
-  await assert.rejects(validateArtemisRoot('./relative-artemis'), /absolute path/)
+  await assert.rejects(validateArtemisRoot('../relative-artemis'), /absolute path/)
   const invalid = await mkdtemp(path.join(os.tmpdir(), 'not-artemis-'))
   await assert.rejects(validateArtemisRoot(invalid), /missing required files/)
 })
 
-test('matches ARTEMIS Python resolution: local .venv first, then current Python', async () => {
+test('resolves ARTEMIS Python from the local .venv on supported platforms', async () => {
   const posix = await fakeArtemisRoot({ withPosixVenv: true })
-  assert.equal(await resolveArtemisPython(posix, { platform: 'linux', fallbackPython: '/fallback/python' }), path.join(posix, '.venv', 'bin', 'python'))
+  assert.equal(await resolveArtemisPython(posix, { platform: 'linux' }), path.join(posix, '.venv', 'bin', 'python'))
   const windows = await fakeArtemisRoot({ withWindowsVenv: true })
-  assert.equal(await resolveArtemisPython(windows, { platform: 'win32', fallbackPython: 'C:\\fallback\\python.exe' }), path.join(windows, '.venv', 'Scripts', 'python.exe'))
-  const noVenv = await fakeArtemisRoot()
-  assert.equal(await resolveArtemisPython(noVenv, { platform: 'linux', fallbackPython: process.execPath }), path.resolve(process.execPath))
+  assert.equal(await resolveArtemisPython(windows, { platform: 'win32' }), path.join(windows, '.venv', 'Scripts', 'python.exe'))
+})
+
+test('uses only an explicitly supplied fallback Python when no ARTEMIS .venv exists', async () => {
+  const root = await fakeArtemisRoot()
+  const fallback = path.join(root, 'fallback-python')
+  await writeFile(fallback, '')
+  assert.equal(
+    await resolveArtemisPython(root, { platform: 'linux', fallbackPython: fallback }),
+    path.resolve(fallback),
+  )
+  await assert.rejects(
+    resolveArtemisPython(root, { platform: 'linux', fallbackPython: path.join(root, 'missing-python') }),
+    /Fallback ARTEMIS Python executable does not exist/,
+  )
+})
+
+test('fails closed when neither an ARTEMIS .venv nor an explicit Python is available', async () => {
+  const root = await fakeArtemisRoot()
+  await assert.rejects(
+    resolveArtemisPython(root, { platform: 'linux' }),
+    /No ARTEMIS Python executable is available/,
+  )
+  await assert.rejects(
+    buildHarnessMcpRow({ artemisRoot: root, platform: 'linux' }),
+    /No ARTEMIS Python executable is available/,
+  )
 })
 
 test('explicit Python must exist and overrides .venv discovery', async () => {
