@@ -26,10 +26,12 @@ jobs:
       - name: Checkout dsh-artemis
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
           path: dsh-artemis
       - name: Checkout pinned DeepSeek Harness
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
           repository: deepseek-ai/deepseek-harness
           ref: ${{ env.HARNESS_SHA }}
           path: deepseek-harness
