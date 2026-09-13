@@ -1,0 +1,85 @@
+name: ARTEMIS compatibility
+
+on:
+  pull_request:
+    paths:
+      - "src/host/**"
+      - "src/shared/**"
+      - "scripts/smoke-real-artemis-daemon.mjs"
+      - "docs/upstreams.md"
+      - ".github/workflows/artemis-compat.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  ARTEMIS_SHA: 086078819209c7139d6f833cfdc6d5cc80d9f19a
+  UV_VERSION: 0.7.20
+
+jobs:
+  real-daemon-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout dsh-artemis
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: dsh-artemis
+      - name: Checkout pinned ARTEMIS
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: google/artemis
+          ref: ${{ env.ARTEMIS_SHA }}
+          path: artemis
+      - name: Set up Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Set up pinned uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: false
+      - name: Verify upstream dependency sources before installation
+        working-directory: artemis
+        run: python scripts/check_dependency_sources.py
+      - name: Install pinned ARTEMIS runtime from lockfile
+        working-directory: artemis
+        run: uv sync --locked --no-dev
+      - name: Start pinned real ARTEMIS daemon
+        working-directory: artemis
+        run: |
+          uv run python apps/admin_console/server.py --host 127.0.0.1 --port 8000 > "$RUNNER_TEMP/real-artemis.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/real-artemis.pid"
+          for _ in $(seq 1 120); do
+            if curl --fail --silent http://127.0.0.1:8000/api/status >/dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/real-artemis.pid")" 2>/dev/null; then
+              echo "::error title=ARTEMIS daemon exited during startup::Showing final daemon lines"
+              tail -n 120 "$RUNNER_TEMP/real-artemis.log"
+              exit 1
+            fi
+            sleep 0.5
+          done
+          echo "::error title=ARTEMIS daemon startup timeout::Daemon did not become ready within 60 seconds"
+          tail -n 120 "$RUNNER_TEMP/real-artemis.log"
+          exit 1
+      - name: Exercise dsh-artemis against the real pinned daemon
+        working-directory: dsh-artemis
+        env:
+          ARTEMIS_BASE_URL: http://127.0.0.1:8000
+        run: node scripts/smoke-real-artemis-daemon.mjs
+      - name: Show ARTEMIS daemon log on failure
+        if: failure()
+        run: |
+          if [ -f "$RUNNER_TEMP/real-artemis.log" ]; then
+            tail -n 160 "$RUNNER_TEMP/real-artemis.log"
+          fi
+      - name: Stop real ARTEMIS daemon
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/real-artemis.pid" ]; then
+            kill "$(cat "$RUNNER_TEMP/real-artemis.pid")" 2>/dev/null || true
+          fi
