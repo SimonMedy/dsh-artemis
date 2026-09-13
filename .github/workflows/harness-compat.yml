@@ -203,7 +203,7 @@ jobs:
           DSH_E2E_SESSION_CWD: ${{ github.workspace }}/dsh-artemis
         run: |
           cp "$GITHUB_WORKSPACE/dsh-artemis/test/e2e/native-panel.e2e.mjs" ./dsh-artemis-native-panel.e2e.mjs
-          pnpm exec node ./dsh-artemis-native-panel.e2e.mjs
+          node "$GITHUB_WORKSPACE/dsh-artemis/scripts/run-e2e-redacted.mjs" ./dsh-artemis-native-panel.e2e.mjs
       - name: Upload browser failure evidence
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
