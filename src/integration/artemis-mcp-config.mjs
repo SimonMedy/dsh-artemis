@@ -1,5 +1,5 @@
 import { constants } from 'node:fs'
-import { access, stat } from 'node:fs/promises'
+import { access, lstat, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 const REQUIRED_ARTEMIS_FILES = Object.freeze([
@@ -31,7 +31,7 @@ export async function validateArtemisRoot(
   root,
   {
     accessImpl = access,
-    statImpl = stat,
+    lstatImpl = lstat,
   } = {},
 ) {
   if (typeof root !== 'string' || !root.trim()) throw new TypeError('ARTEMIS root is required')
@@ -40,10 +40,10 @@ export async function validateArtemisRoot(
 
   const invalid = []
   for (const relative of REQUIRED_ARTEMIS_FILES) {
-    if (!(await isRegularFile(path.join(resolved, relative), { accessImpl, statImpl }))) invalid.push(relative)
+    if (!(await isRegularFile(path.join(resolved, relative), { accessImpl, statImpl: lstatImpl }))) invalid.push(relative)
   }
   if (invalid.length > 0) {
-    throw new Error(`ARTEMIS root is missing required regular files: ${invalid.join(', ')}`)
+    throw new Error(`ARTEMIS root is missing required non-symlink regular files: ${invalid.join(', ')}`)
   }
   return resolved
 }
@@ -97,9 +97,10 @@ export async function buildHarnessMcpRow({
   platform = process.platform,
   fallbackPython,
   accessImpl = access,
+  lstatImpl = lstat,
   statImpl = stat,
 } = {}) {
-  const root = await validateArtemisRoot(artemisRoot, { accessImpl, statImpl })
+  const root = await validateArtemisRoot(artemisRoot, { accessImpl, lstatImpl })
   const python = await resolveArtemisPython(root, {
     explicitPython: pythonExecutable,
     platform,
