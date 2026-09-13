@@ -4,7 +4,7 @@ const DEFAULT_SNAPSHOT_TIMEOUT_MS = 4_000
 const DEFAULT_MAX_JSON_BYTES = 1_048_576
 const DEFAULT_MAX_FRAME_BYTES = 8_388_608
 const MAX_MULTIPART_HEADER_BYTES = 16_384
-const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]'])
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', '[::1]'])
 const PNG_SIGNATURE = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 
 export class ArtemisProtocolError extends Error {
