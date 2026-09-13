@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
-import { chmod, mkdtemp, mkdir, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import {
+  artemisMcpRequiredFiles,
   buildHarnessMcpRow,
   renderHarnessMcpCordisRow,
   resolveArtemisPython,
@@ -37,7 +38,22 @@ test('validates an explicit absolute ARTEMIS root instead of scanning arbitrary 
   assert.equal(await validateArtemisRoot(root), path.normalize(root))
   await assert.rejects(validateArtemisRoot('../relative-artemis'), /absolute path/)
   const invalid = await mkdtemp(path.join(os.tmpdir(), 'not-artemis-'))
-  await assert.rejects(validateArtemisRoot(invalid), /missing required files/)
+  await assert.rejects(validateArtemisRoot(invalid), /missing required regular files/)
+})
+
+test('requires every ARTEMIS root marker to be a regular file', async (t) => {
+  for (const relative of artemisMcpRequiredFiles) {
+    await t.test(relative, async () => {
+      const root = await fakeArtemisRoot()
+      const marker = path.join(root, relative)
+      await rm(marker)
+      await mkdir(marker)
+      await assert.rejects(
+        validateArtemisRoot(root),
+        new RegExp(relative.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+      )
+    })
+  }
 })
 
 test('resolves ARTEMIS Python from the local .venv on supported platforms', async () => {
