@@ -59,18 +59,26 @@ jobs:
           run_quiet harness-install pnpm install --frozen-lockfile
           run_quiet harness-build pnpm run build
           pnpm dsh --version
-      - name: Rebuild dsh-artemis browser client from pinned Harness toolchain
+      - name: Verify checked-in browser client matches pinned DeepSeek Harness build
         working-directory: dsh-artemis
         env:
           DSH_HARNESS_ROOT: ${{ github.workspace }}/deepseek-harness
           DSH_HARNESS_SHA: ${{ env.HARNESS_SHA }}
-          DSH_ARTEMIS_CLIENT_OUT_DIR: ${{ github.workspace }}/dsh-artemis/lib
+          DSH_ARTEMIS_CLIENT_OUT_DIR: ${{ runner.temp }}/dsh-artemis-client-build
         run: |
+          rm -rf "$DSH_ARTEMIS_CLIENT_OUT_DIR"
           npm run bundle:client
+          test -f "$DSH_ARTEMIS_CLIENT_OUT_DIR/client.js"
+          if ! cmp -s "$DSH_ARTEMIS_CLIENT_OUT_DIR/client.js" lib/client.js; then
+            echo "::error title=Generated client bundle drift::lib/client.js does not match the pinned DeepSeek Harness build. Rebuild and commit the generated bundle."
+            exit 1
+          fi
           node --test test/client-bundle.test.mjs
           grep -F 'window.__ModuleLoader__.load' lib/client.js
           grep -F '/dsh-artemis/v1/snapshot' lib/client.js
           grep -F 'Capture Android screen' lib/client.js
+          grep -F 'Visual QA checkpoint' lib/client.js
+          grep -F 'response size limit' lib/client.js
       - name: Pack dsh-artemis as a distribution artifact
         id: pack
         working-directory: dsh-artemis
