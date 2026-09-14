@@ -104,7 +104,7 @@ async function readJsonWithinLimit(response, endpoint, maxBytes) {
       chunks.push(value)
     }
   } finally {
-    reader.releaseLock?.()
+    try { reader.releaseLock?.() } catch {}
   }
   const bytes = new Uint8Array(size)
   let offset = 0
@@ -373,7 +373,7 @@ export class ArtemisHttpClient {
       if (cause instanceof ArtemisProtocolError) throw cause
       throw new ArtemisProtocolError('ARTEMIS snapshot request failed', { code: 'unavailable', cause })
     } finally {
-      await iterator.return?.()
+      try { await iterator.return?.() } catch {}
     }
   }
 }
