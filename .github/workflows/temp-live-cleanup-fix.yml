@@ -1,0 +1,50 @@
+name: Temporary live cleanup fix
+
+on:
+  push:
+    branches:
+      - gpt/phase-7-live-cleanup-sync-throw
+    paths:
+      - .github/workflows/temp-live-cleanup-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Patch exact live cleanup site
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          node <<'NODE'
+          const api = 'https://api.github.com'
+          const path = 'src/host/harness-routes.mjs'
+          const headers = {
+            accept: 'application/vnd.github+json',
+            authorization: `Bearer ${process.env.GH_TOKEN}`,
+            'x-github-api-version': '2026-03-10',
+          }
+          const get = await fetch(`${api}/repos/${process.env.REPO}/contents/${path}?ref=${encodeURIComponent(process.env.BRANCH)}`, { headers })
+          if (!get.ok) throw new Error(`contents read failed: ${get.status}`)
+          const file = await get.json()
+          let source = Buffer.from(file.content, 'base64').toString('utf8')
+          const oldText = `      await iterator.return?.().catch(() => {})`
+          const newText = `      try { await iterator.return?.() } catch {}`
+          if (source.split(oldText).length !== 2) throw new Error('expected exactly one live cleanup site')
+          source = source.replace(oldText, newText)
+          const put = await fetch(`${api}/repos/${process.env.REPO}/contents/${path}`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({
+              message: 'fix: contain synchronous live cleanup failures',
+              content: Buffer.from(source).toString('base64'),
+              sha: file.sha,
+              branch: process.env.BRANCH,
+            }),
+          })
+          if (!put.ok) throw new Error(`contents update failed: ${put.status}`)
+          NODE
