@@ -241,11 +241,14 @@ async function* readPngFrames(response, maxFrameBytes) {
         if (buffer.byteLength === 0) return
         throw new ArtemisProtocolError('ARTEMIS live stream ended before a complete frame arrived', { code: 'incomplete-frame' })
       }
+      if (!(value instanceof Uint8Array)) {
+        throw new ArtemisProtocolError('ARTEMIS live stream returned an invalid response body', { code: 'invalid-multipart' })
+      }
       buffer = appendBytes(buffer, value, maxBuffered)
     }
   } finally {
     await reader.cancel().catch(() => {})
-    reader.releaseLock()
+    try { reader.releaseLock?.() } catch {}
   }
 }
 
