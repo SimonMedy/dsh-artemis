@@ -1,0 +1,56 @@
+name: Temporary host cleanup fix
+
+on:
+  push:
+    branches:
+      - gpt/phase-7-host-cleanup-integrity
+    paths:
+      - .github/workflows/temp-host-cleanup-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Patch exact host cleanup sites
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          node <<'NODE'
+          const api = 'https://api.github.com'
+          const path = 'src/host/artemis-http.mjs'
+          const headers = {
+            accept: 'application/vnd.github+json',
+            authorization: `Bearer ${process.env.GH_TOKEN}`,
+            'x-github-api-version': '2026-03-10',
+          }
+          const get = await fetch(`${api}/repos/${process.env.REPO}/contents/${path}?ref=${encodeURIComponent(process.env.BRANCH)}`, { headers })
+          if (!get.ok) throw new Error(`contents read failed: ${get.status}`)
+          const file = await get.json()
+          let source = Buffer.from(file.content, 'base64').toString('utf8')
+
+          const jsonOld = `  } finally {\n    reader.releaseLock?.()\n  }\n  const bytes`
+          const jsonNew = `  } finally {\n    try { reader.releaseLock?.() } catch {}\n  }\n  const bytes`
+          const snapshotOld = `    } finally {\n      await iterator.return?.()\n    }\n  }\n}`
+          const snapshotNew = `    } finally {\n      try { await iterator.return?.() } catch {}\n    }\n  }\n}`
+
+          if (source.split(jsonOld).length !== 2) throw new Error('expected exactly one JSON cleanup site')
+          if (source.split(snapshotOld).length !== 2) throw new Error('expected exactly one snapshot cleanup site')
+          source = source.replace(jsonOld, jsonNew).replace(snapshotOld, snapshotNew)
+
+          const put = await fetch(`${api}/repos/${process.env.REPO}/contents/${path}`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({
+              message: 'fix: preserve host errors during cleanup',
+              content: Buffer.from(source).toString('base64'),
+              sha: file.sha,
+              branch: process.env.BRANCH,
+            }),
+          })
+          if (!put.ok) throw new Error(`contents update failed: ${put.status}`)
+          NODE
