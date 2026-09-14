@@ -1,0 +1,86 @@
+name: Temporary regenerate browser bundle
+
+on:
+  push:
+    branches:
+      - gpt/phase-7-snapshot-cleanup-errors
+    paths:
+      - .github/workflows/temp-regenerate-browser-bundle.yml
+
+permissions:
+  contents: write
+
+env:
+  HARNESS_SHA: c291e7961a515f6d7af9304e7fd1d257929aef26
+  PNPM_VERSION: 11.7.0
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout dsh-artemis
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          path: dsh-artemis
+      - name: Checkout pinned DeepSeek Harness
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          repository: deepseek-ai/deepseek-harness
+          ref: ${{ env.HARNESS_SHA }}
+          path: deepseek-harness
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22.20.0
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare "pnpm@${PNPM_VERSION}" --activate
+      - name: Install pinned Harness toolchain
+        working-directory: deepseek-harness
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+      - name: Regenerate checked-in browser bundle
+        working-directory: dsh-artemis
+        env:
+          DSH_HARNESS_ROOT: ${{ github.workspace }}/deepseek-harness
+          DSH_HARNESS_SHA: ${{ env.HARNESS_SHA }}
+        run: npm run bundle:client
+      - name: Commit generated bundle to working branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          node <<'NODE'
+          import { readFile } from 'node:fs/promises'
+          const api = 'https://api.github.com'
+          const headers = {
+            accept: 'application/vnd.github+json',
+            authorization: `Bearer ${process.env.GH_TOKEN}`,
+            'content-type': 'application/json',
+            'x-github-api-version': '2026-03-10',
+          }
+          const filePath = 'lib/client.js'
+          const ref = encodeURIComponent(process.env.BRANCH)
+          const get = await fetch(`${api}/repos/${process.env.REPO}/contents/${filePath}?ref=${ref}`, { headers })
+          if (!get.ok) throw new Error(`GET bundle failed: ${get.status} ${await get.text()}`)
+          const current = await get.json()
+          const content = await readFile('dsh-artemis/lib/client.js')
+          const put = await fetch(`${api}/repos/${process.env.REPO}/contents/${filePath}`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({
+              message: 'build: regenerate browser client',
+              content: content.toString('base64'),
+              sha: current.sha,
+              branch: process.env.BRANCH,
+            }),
+          })
+          if (!put.ok) throw new Error(`PUT bundle failed: ${put.status} ${await put.text()}`)
+          console.log('Generated bundle committed')
+          NODE
