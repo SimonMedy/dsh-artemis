@@ -63,7 +63,7 @@ export async function readBoundedJsonResponse(response, {
       if (!(value instanceof Uint8Array)) throw new Error(`${label} returned an invalid response body`)
       total += value.byteLength
       if (total > maxBytes) {
-        await reader.cancel().catch(() => {})
+        try { await reader.cancel() } catch {}
         throw new Error(`${label} exceeded the response size limit`)
       }
       chunks.push(value)
