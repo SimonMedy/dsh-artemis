@@ -32,3 +32,39 @@ test('browser JSON reader preserves the primary protocol error when releaseLock 
   )
   assert.equal(released, true)
 })
+
+test('browser JSON reader preserves the size-limit error when cancel throws synchronously', async () => {
+  let cancelled = false
+  let released = false
+  const reader = {
+    async read() {
+      return { done: false, value: Uint8Array.from([1, 2, 3, 4, 5]) }
+    },
+    cancel() {
+      cancelled = true
+      throw new Error('cancel failed synchronously')
+    },
+    releaseLock() {
+      released = true
+    },
+  }
+  const response = {
+    headers: {
+      get(name) {
+        return name.toLowerCase() === 'content-type' ? 'application/json' : null
+      },
+    },
+    body: {
+      getReader() {
+        return reader
+      },
+    },
+  }
+
+  await assert.rejects(
+    readBoundedJsonResponse(response, { maxBytes: 4 }),
+    /response size limit/,
+  )
+  assert.equal(cancelled, true)
+  assert.equal(released, true)
+})
