@@ -1,0 +1,182 @@
+name: Temporary reader cancel sync-throw patch
+
+on:
+  push:
+    branches:
+      - gpt/phase-7-reader-cancel-sync-throw
+    paths:
+      - .github/workflows/temp-reader-cancel-sync-throw.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Patch reader cancellation cleanup atomically
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          node <<'NODE'
+          const api = 'https://api.github.com'
+          const headers = {
+            accept: 'application/vnd.github+json',
+            authorization: `Bearer ${process.env.GH_TOKEN}`,
+            'content-type': 'application/json',
+            'x-github-api-version': '2026-03-10',
+          }
+          async function request(path, options = {}) {
+            const response = await fetch(`${api}${path}`, { headers, ...options })
+            if (!response.ok) {
+              const text = await response.text()
+              throw new Error(`${options.method ?? 'GET'} ${path} failed: ${response.status} ${text}`)
+            }
+            return response.status === 204 ? null : response.json()
+          }
+          function replaceExact(source, oldText, newText, expected, label) {
+            const count = source.split(oldText).length - 1
+            if (count !== expected) throw new Error(`${label}: expected ${expected} matches, found ${count}`)
+            return source.split(oldText).join(newText)
+          }
+          async function readFile(path) {
+            const file = await request(`/repos/${process.env.REPO}/contents/${encodeURIComponent(path).replaceAll('%2F', '/')}?ref=${encodeURIComponent(process.env.BRANCH)}`)
+            return Buffer.from(file.content, 'base64').toString('utf8')
+          }
+
+          const encodedBranch = process.env.BRANCH.split('/').map(encodeURIComponent).join('/')
+          const ref = await request(`/repos/${process.env.REPO}/git/ref/heads/${encodedBranch}`)
+          const head = ref.object.sha
+          const commit = await request(`/repos/${process.env.REPO}/git/commits/${head}`)
+
+          const files = new Map()
+          for (const path of [
+            'src/host/artemis-http.mjs',
+            'src/host/artemis-evidence.mjs',
+            'test/artemis-http-json-stream.test.mjs',
+            'test/artemis-evidence-json-stream.test.mjs',
+            'test/artemis-http-live-stream-integrity.test.mjs',
+          ]) {
+            files.set(path, await readFile(path))
+          }
+
+          const unsafeCancel = `await reader.cancel().catch(() => {})`
+          const safeCancel = `try { await reader.cancel() } catch {}`
+          files.set(
+            'src/host/artemis-http.mjs',
+            replaceExact(files.get('src/host/artemis-http.mjs'), unsafeCancel, safeCancel, 2, 'artemis-http cancel sites'),
+          )
+          files.set(
+            'src/host/artemis-evidence.mjs',
+            replaceExact(files.get('src/host/artemis-evidence.mjs'), unsafeCancel, safeCancel, 1, 'artemis-evidence cancel site'),
+          )
+
+          const httpTest = `
+          test('Host JSON reader preserves response-too-large when cancel throws synchronously', async () => {
+            let cancelled = false
+            let released = false
+            const reader = {
+              async read() { return { done: false, value: Uint8Array.from([1, 2, 3, 4, 5]) } },
+              cancel() {
+                cancelled = true
+                throw new Error('cancel failed synchronously')
+              },
+              releaseLock() { released = true },
+            }
+            const client = new ArtemisHttpClient({
+              maxJsonBytes: 4,
+              fetchImpl: async () => responseWithReader(reader),
+            })
+            await assert.rejects(
+              client.health(),
+              (error) => error instanceof ArtemisProtocolError && error.code === 'response-too-large',
+            )
+            assert.equal(cancelled, true)
+            assert.equal(released, true)
+          })
+          `
+          const evidenceTest = `
+          test('evidence JSON reader preserves response-too-large when cancel throws synchronously', async () => {
+            let cancelled = false
+            let released = false
+            const reader = {
+              async read() { return { done: false, value: Uint8Array.from([1, 2, 3, 4, 5]) } },
+              cancel() {
+                cancelled = true
+                throw new Error('cancel failed synchronously')
+              },
+              releaseLock() { released = true },
+            }
+            await assert.rejects(
+              getTaskStatus(evidenceClient(reader, { maxJsonBytes: 4 })),
+              (error) => error instanceof ArtemisProtocolError && error.code === 'response-too-large',
+            )
+            assert.equal(cancelled, true)
+            assert.equal(released, true)
+          })
+          `
+          const liveTest = `
+          test('Host live stream preserves protocol errors when cancel throws synchronously', async () => {
+            let cancelled = false
+            let released = false
+            const reader = {
+              async read() { return { done: false, value: 'not-bytes' } },
+              cancel() {
+                cancelled = true
+                throw new Error('cancel failed synchronously')
+              },
+              releaseLock() { released = true },
+            }
+            const client = new ArtemisHttpClient({ fetchImpl: async () => multipartResponse(reader) })
+            const iterator = client.streamSnapshots()[Symbol.asyncIterator]()
+            await assert.rejects(
+              iterator.next(),
+              (error) => error instanceof ArtemisProtocolError && error.code === 'invalid-multipart',
+            )
+            assert.equal(cancelled, true)
+            assert.equal(released, true)
+          })
+          `
+
+          for (const [path, testText, marker] of [
+            ['test/artemis-http-json-stream.test.mjs', httpTest, "cancel throws synchronously"],
+            ['test/artemis-evidence-json-stream.test.mjs', evidenceTest, "cancel throws synchronously"],
+            ['test/artemis-http-live-stream-integrity.test.mjs', liveTest, "cancel throws synchronously"],
+          ]) {
+            const source = files.get(path)
+            if (source.includes(marker)) throw new Error(`${path}: sync-throw regression already present`)
+            files.set(path, `${source.trimEnd()}\n\n${testText.trim()}\n`)
+          }
+
+          const tree = await request(`/repos/${process.env.REPO}/git/trees`, {
+            method: 'POST',
+            body: JSON.stringify({
+              base_tree: commit.tree.sha,
+              tree: [...files].map(([path, content]) => ({
+                path,
+                mode: '100644',
+                type: 'blob',
+                content,
+              })),
+            }),
+          })
+          const nextCommit = await request(`/repos/${process.env.REPO}/git/commits`, {
+            method: 'POST',
+            body: JSON.stringify({
+              message: 'fix: contain synchronous reader cancellation failures',
+              tree: tree.sha,
+              parents: [head],
+            }),
+          })
+          const currentRef = await request(`/repos/${process.env.REPO}/git/ref/heads/${encodedBranch}`)
+          if (currentRef.object.sha !== head) {
+            throw new Error(`branch moved during patch: expected ${head}, found ${currentRef.object.sha}`)
+          }
+          await request(`/repos/${process.env.REPO}/git/refs/heads/${encodedBranch}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ sha: nextCommit.sha, force: false }),
+          })
+          console.log(`Created ${nextCommit.sha}`)
+          NODE
