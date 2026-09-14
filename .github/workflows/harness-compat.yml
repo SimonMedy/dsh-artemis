@@ -116,6 +116,30 @@ jobs:
           pnpm dsh web --dump-config > "$RUNNER_TEMP/dsh-web-config.yml"
           grep -F 'id: dsh-artemis' "$RUNNER_TEMP/dsh-web-config.yml"
           grep -F 'dsh-artemis' "$RUNNER_TEMP/dsh-web-config.yml"
+      - name: Remove dsh-artemis through the public Harness plugin CLI
+        working-directory: deepseek-harness
+        env:
+          DSH_HOME: ${{ runner.temp }}/dsh-home
+        run: |
+          pnpm dsh plugin --profile web remove dsh-artemis
+          node -e "const p=require(process.env.DSH_HOME+'/profiles/web/package.json'); if (p.dependencies?.['dsh-artemis']) process.exit(1); if (p.dsh?.profile?.bundles?.includes('dsh-artemis')) process.exit(2)"
+          pnpm dsh web --dump-config > "$RUNNER_TEMP/dsh-web-without-artemis.yml"
+          test -s "$RUNNER_TEMP/dsh-web-without-artemis.yml"
+          if grep -Fq 'dsh-artemis' "$RUNNER_TEMP/dsh-web-without-artemis.yml"; then
+            echo "::error title=dsh-artemis removal left Cordis state::Removed plugin still appears in composed Harness config"
+            exit 1
+          fi
+      - name: Reinstall dsh-artemis and verify profile reconciliation
+        working-directory: deepseek-harness
+        env:
+          DSH_HOME: ${{ runner.temp }}/dsh-home
+          ARTEMIS_TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: |
+          pnpm dsh plugin --profile web add "$ARTEMIS_TARBALL"
+          node -e "const p=require(process.env.DSH_HOME+'/profiles/web/package.json'); if (!p.dependencies?.['dsh-artemis']) process.exit(1); if (!p.dsh?.profile?.bundles?.includes('dsh-artemis')) process.exit(2)"
+          pnpm dsh web --dump-config > "$RUNNER_TEMP/dsh-web-reinstalled.yml"
+          grep -F 'id: dsh-artemis' "$RUNNER_TEMP/dsh-web-reinstalled.yml"
+          grep -F 'dsh-artemis' "$RUNNER_TEMP/dsh-web-reinstalled.yml"
       - name: Install Chromium for the Harness Playwright runtime
         working-directory: deepseek-harness/apps/web
         run: pnpm exec playwright install chromium
