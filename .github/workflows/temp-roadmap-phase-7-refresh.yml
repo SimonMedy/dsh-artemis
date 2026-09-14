@@ -1,0 +1,87 @@
+name: Temporary roadmap Phase 7 refresh
+
+on:
+  push:
+    branches:
+      - gpt/phase-7-reader-cancel-sync-throw
+    paths:
+      - .github/workflows/temp-roadmap-phase-7-refresh.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh roadmap through PR 66
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          node <<'NODE'
+          const api = 'https://api.github.com'
+          const headers = {
+            accept: 'application/vnd.github+json',
+            authorization: `Bearer ${process.env.GH_TOKEN}`,
+            'content-type': 'application/json',
+            'x-github-api-version': '2026-03-10',
+          }
+
+          async function request(path, options = {}) {
+            const response = await fetch(`${api}${path}`, { headers, ...options })
+            const text = await response.text()
+            if (!response.ok) throw new Error(`${options.method ?? 'GET'} ${path}: ${response.status} ${text}`)
+            return text ? JSON.parse(text) : null
+          }
+
+          function replaceExact(source, oldText, newText, expected, label) {
+            const count = source.split(oldText).length - 1
+            if (count !== expected) throw new Error(`${label}: expected ${expected} matches, found ${count}`)
+            return source.split(oldText).join(newText)
+          }
+
+          const encodedBranch = process.env.BRANCH.split('/').map(encodeURIComponent).join('/')
+          const file = await request(`/repos/${process.env.REPO}/contents/docs/roadmap.md?ref=${encodeURIComponent(process.env.BRANCH)}`)
+          let content = Buffer.from(file.content, 'base64').toString('utf8')
+
+          content = replaceExact(
+            content,
+            'Last updated: 2026-09-13',
+            'Last updated: 2026-09-14',
+            1,
+            'roadmap date',
+          )
+          content = replaceExact(
+            content,
+            'Security, privacy and release hardening merged through PR #49; real pinned ARTEMIS daemon compatibility is proven, while real device/emulator smoke and remaining release polish stay open',
+            'Security, privacy, response-boundary and cleanup hardening merged through PR #66; real pinned ARTEMIS daemon compatibility is proven, while real device/emulator smoke and remaining release polish stay open',
+            1,
+            'phase 7 status table',
+          )
+          content = replaceExact(
+            content,
+            '**Status: ONGOING — hardening merged through PR #49**',
+            '**Status: ONGOING — hardening merged through PR #66**',
+            1,
+            'phase 7 heading',
+          )
+
+          const anchor = '- [x] PR #49: audited `actions/checkout`/`actions/setup-node` revisions use the Node 24 Action runtime, remain full-SHA pinned, and are locked by repository invariants.'
+          const addition = `${anchor}
+- [x] PR #50–#56: roadmap continuity, streamed browser JSON/snapshot accounting, safe ARTEMIS/Harness failure summaries, literal-loopback enforcement and Host JSON integrity hardening.
+- [x] PR #57–#61: Host live/evidence stream validation plus exact JSON MIME and strict shared `Content-Length` policy across browser/Host/evidence boundaries.
+- [x] PR #62–#66: browser/Host cleanup-error preservation, browser response isolation headers and synchronous cleanup hardening for live/JSON readers.`
+          content = replaceExact(content, anchor, addition, 1, 'phase 7 delivery anchor')
+
+          await request(`/repos/${process.env.REPO}/contents/docs/roadmap.md`, {
+            method: 'PUT',
+            body: JSON.stringify({
+              message: 'docs: refresh Phase 7 roadmap through PR 66',
+              content: Buffer.from(content, 'utf8').toString('base64'),
+              sha: file.sha,
+              branch: process.env.BRANCH,
+            }),
+          })
+          NODE
