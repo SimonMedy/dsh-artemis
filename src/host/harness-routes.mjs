@@ -202,7 +202,7 @@ export function createLiveHandler(client, { requestRejection } = {}) {
       controller.abort()
       req.off('aborted', abort)
       res.off('close', abort)
-      await iterator.return?.().catch(() => {})
+      try { await iterator.return?.() } catch {}
     }
   }
 }
