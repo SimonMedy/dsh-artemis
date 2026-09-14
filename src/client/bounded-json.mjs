@@ -1,3 +1,5 @@
+import { isJsonContentType } from '../shared/json-content-type.mjs'
+
 export const DEFAULT_BROWSER_JSON_LIMIT_BYTES = 128 * 1024
 
 function responseHeader(response, name) {
@@ -7,7 +9,7 @@ function responseHeader(response, name) {
 
 function assertJsonContentType(response, label) {
   const contentType = responseHeader(response, 'content-type').toLowerCase()
-  if (!contentType.startsWith('application/json')) {
+  if (!isJsonContentType(contentType)) {
     throw new Error(`${label} returned an invalid content type`)
   }
 }

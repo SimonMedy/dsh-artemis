@@ -1,3 +1,4 @@
+import { isJsonContentType } from '../shared/json-content-type.mjs'
 const DEFAULT_BASE_URL = 'http://127.0.0.1:8000'
 const DEFAULT_TIMEOUT_MS = 2_000
 const DEFAULT_SNAPSHOT_TIMEOUT_MS = 4_000
@@ -68,7 +69,7 @@ function normalizeDevice(value) {
 
 async function readJsonWithinLimit(response, endpoint, maxBytes) {
   const contentType = response.headers.get('content-type') ?? ''
-  if (!contentType.toLowerCase().includes('application/json')) {
+  if (!isJsonContentType(contentType)) {
     throw new ArtemisProtocolError(`${endpoint} returned an unexpected content type`, { code: 'unexpected-content-type' })
   }
   const declared = Number(response.headers.get('content-length'))
