@@ -69,7 +69,7 @@ export async function readBoundedJsonResponse(response, {
       chunks.push(value)
     }
   } finally {
-    reader.releaseLock?.()
+    try { reader.releaseLock?.() } catch {}
   }
 
   const bytes = new Uint8Array(total)
