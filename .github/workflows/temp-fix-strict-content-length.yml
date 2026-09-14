@@ -6,7 +6,6 @@ on:
       - gpt/phase-7-strict-content-length
     paths:
       - .github/workflows/temp-fix-strict-content-length.yml
-      - .github/temp/patch-strict-content-length.mjs
 
 permissions:
   contents: write
@@ -25,6 +24,9 @@ jobs:
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 22.20.0
+      - name: Escape temporary endpoint placeholders in patcher checkout
+        working-directory: dsh-artemis
+        run: sed -i 's/${endpoint}/\\${endpoint}/g' .github/temp/patch-strict-content-length.mjs
       - name: Apply exact strict Content-Length patch atomically
         working-directory: dsh-artemis
         env:
