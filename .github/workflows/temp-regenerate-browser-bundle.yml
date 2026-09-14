@@ -42,7 +42,7 @@ jobs:
       - name: Install pinned Harness toolchain
         working-directory: deepseek-harness
         run: |
-          pnam install --frozen-lockfile
+          pnpm install --frozen-lockfile
           pnpm run build
       - name: Regenerate checked-in browser bundle
         working-directory: dsh-artemis
@@ -56,7 +56,7 @@ jobs:
           REPO: ${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
         run: |
-          nod <<'NODE'
+          node <<'NODE'
           import { readFile } from 'node:fs/promises'
           const api = 'https://api.github.com'
           const headers = {
