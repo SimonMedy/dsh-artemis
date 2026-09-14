@@ -72,9 +72,18 @@ async function readJsonWithinLimit(response, endpoint, maxBytes) {
   if (!isJsonContentType(contentType)) {
     throw new ArtemisProtocolError(`${endpoint} returned an unexpected content type`, { code: 'unexpected-content-type' })
   }
-  const declared = Number(response.headers.get('content-length'))
-  if (Number.isFinite(declared) && declared > maxBytes) {
-    throw new ArtemisProtocolError(`${endpoint} response exceeded the configured size limit`, { code: 'response-too-large' })
+  const declaredText = response.headers.get('content-length')
+  if (declaredText !== null) {
+    if (!/^\d+$/.test(declaredText)) {
+      throw new ArtemisProtocolError(`${endpoint} returned an invalid Content-Length`, { code: 'invalid-content-length' })
+    }
+    const declared = Number(declaredText)
+    if (!Number.isSafeInteger(declared)) {
+      throw new ArtemisProtocolError(`${endpoint} returned an invalid Content-Length`, { code: 'invalid-content-length' })
+    }
+    if (declared > maxBytes) {
+      throw new ArtemisProtocolError(`${endpoint} response exceeded the configured size limit`, { code: 'response-too-large' })
+    }
   }
   if (!response.body) throw new ArtemisProtocolError(`${endpoint} returned an empty response body`)
   const reader = response.body.getReader()
