@@ -1,3 +1,4 @@
+import { parseDecimalContentLength } from '../shared/content-length.mjs'
 import { isJsonContentType } from '../shared/json-content-type.mjs'
 
 export const DEFAULT_BROWSER_JSON_LIMIT_BYTES = 128 * 1024
@@ -17,9 +18,13 @@ function assertJsonContentType(response, label) {
 function assertDeclaredLength(response, maxBytes, label) {
   const raw = responseHeader(response, 'content-length')
   if (!raw) return
-  if (!/^\d+$/.test(raw)) throw new Error(`${label} returned an invalid content length`)
-  const length = Number(raw)
-  if (!Number.isSafeInteger(length) || length > maxBytes) {
+  let length
+  try {
+    length = parseDecimalContentLength(raw)
+  } catch {
+    throw new Error(`${label} returned an invalid content length`)
+  }
+  if (length > maxBytes) {
     throw new Error(`${label} exceeded the response size limit`)
   }
 }

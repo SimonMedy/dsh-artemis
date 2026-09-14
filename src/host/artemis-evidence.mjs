@@ -1,3 +1,4 @@
+import { parseDecimalContentLength } from '../shared/content-length.mjs'
 import { isJsonContentType } from '../shared/json-content-type.mjs'
 import { ArtemisProtocolError } from './artemis-http.mjs'
 import { DSH_ARTEMIS_PROTOCOL_VERSION, EVIDENCE_ROUTE, TRACE_EVIDENCE_ROUTE } from '../shared/protocol.mjs'
@@ -51,11 +52,13 @@ async function readJsonWithinLimit(response, endpoint, maxBytes) {
   }
   const declaredText = response.headers.get('content-length')
   if (declaredText !== null) {
-    if (!/^\d+$/.test(declaredText)) {
+    let declared
+    try {
+      declared = parseDecimalContentLength(declaredText)
+    } catch {
       throw new ArtemisProtocolError(`${endpoint} returned an invalid Content-Length`, { code: 'invalid-evidence' })
     }
-    const declared = Number(declaredText)
-    if (!Number.isSafeInteger(declared) || declared < 0 || declared > maxBytes) {
+    if (declared > maxBytes) {
       throw new ArtemisProtocolError(`${endpoint} response exceeded the configured size limit`, { code: 'response-too-large' })
     }
   }
