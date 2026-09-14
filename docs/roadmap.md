@@ -106,7 +106,7 @@ Delivered:
 - [x] PR #32: product ARTEMIS transport requires literal loopback.
 - [x] PR #34: checked-in browser bundle must match a fresh pinned DeepSeek Harness build byte-for-byte before packaging.
 - [x] PR #36/#38: real pinned ARTEMIS daemon compatibility installs from the upstream lockfile, starts without model credentials and exercises product adapters; the smoke is environment-neutral about discovered devices.
-- [x] PR #37: documented upstream pins, patibility workflow pins and browser build pin must remain exactly consistent.
+- [x] PR #37: documented upstream pins, compatibility workflow pins and browser build pin must remain exactly consistent.
 - [x] PR #42: browser failure uploads are allow-listed to the single `native-panel-failure.png` with three-day retention.
 - [x] PR #44: raw browser E2E stdout/stderr is suppressed behind a bounded redacted runner; only allow-listed phase/exit metadata can reach CI logs.
 - [x] PR #47: every checkout disables credential persistence; repository tests prevent regressions.
