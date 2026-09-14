@@ -1,0 +1,85 @@
+name: TEMP generate client bundle
+
+on:
+  push:
+    branches:
+      - gpt/phase-7-shared-content-length
+    paths:
+      - .github/workflows/temp-generate-client.yml
+
+permissions:
+  contents: write
+
+env:
+  HARNESS_SHA: c291e7961a515f6d7af9304e7fd1d257929aef26
+  PNPM_VERSION: 11.7.0
+
+jobs:
+  generate-client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout dsh-artemis
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          path: dsh-artemis
+      - name: Checkout pinned DeepSeek Harness
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          repository: deepseek-ai/deepseek-harness
+          ref: ${{ env.HARNESS_SHA }}
+          path: deepseek-harness
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22.20.0
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare "pnpm@${PNPM_VERSION}" --activate
+      - name: Install and build pinned DeepSeek Harness
+        working-directory: deepseek-harness
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+      - name: Generate client bundle from pinned DeepSeek Harness
+        working-directory: dsh-artemis
+        env:
+          DSH_HARNESS_ROOT: ${{ github.workspace }}/deepseek-harness
+          DSH_HARNESS_SHA: ${{ env.HARNESS_SHA }}
+        run: npm run bundle:client
+      - name: Update only generated client bundle on this working branch
+        working-directory: dsh-artemis
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: ${{ github.ref_name }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile } from 'node:fs/promises'
+          const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/')
+          const path = 'lib/client.js'
+          const headers = {
+            accept: 'application/vnd.github+json',
+            authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+            'x-github-api-version': '2026-03-10',
+            'user-agent': 'dsh-artemis-client-generator',
+          }
+          const getUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${encodeURIComponent(process.env.TARGET_BRANCH)}`
+          const currentResponse = await fetch(getUrl, { headers })
+          if (!currentResponse.ok) throw new Error(`Unable to read current bundle metadata: HTTP ${currentResponse.status}`)
+          const current = await currentResponse.json()
+          const content = (await readFile(path)).toString('base64')
+          const putResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+            method: 'PUT',
+            headers: { ...headers, 'content-type': 'application/json' },
+            body: JSON.stringify({
+              message: 'build: sync generated client bundle',
+              content,
+              sha: current.sha,
+              branch: process.env.TARGET_BRANCH,
+            }),
+          })
+          if (!putResponse.ok) throw new Error(`Unable to update generated bundle: HTTP ${putResponse.status}`)
+          NODE
