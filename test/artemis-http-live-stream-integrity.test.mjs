@@ -48,3 +48,24 @@ test('Host live stream preserves protocol errors when releaseLock cleanup fails'
   )
   assert.equal(cancelled, true)
 })
+
+test('Host live stream preserves protocol errors when cancel throws synchronously', async () => {
+  let cancelled = false
+  let released = false
+  const reader = {
+    async read() { return { done: false, value: 'not-bytes' } },
+    cancel() {
+      cancelled = true
+      throw new Error('cancel failed synchronously')
+    },
+    releaseLock() { released = true },
+  }
+  const client = new ArtemisHttpClient({ fetchImpl: async () => multipartResponse(reader) })
+  const iterator = client.streamSnapshots()[Symbol.asyncIterator]()
+  await assert.rejects(
+    iterator.next(),
+    (error) => error instanceof ArtemisProtocolError && error.code === 'invalid-multipart',
+  )
+  assert.equal(cancelled, true)
+  assert.equal(released, true)
+})

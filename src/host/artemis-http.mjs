@@ -98,7 +98,7 @@ async function readJsonWithinLimit(response, endpoint, maxBytes) {
       }
       size += value.byteLength
       if (size > maxBytes) {
-        await reader.cancel().catch(() => {})
+        try { await reader.cancel() } catch {}
         throw new ArtemisProtocolError(`${endpoint} response exceeded the configured size limit`, { code: 'response-too-large' })
       }
       chunks.push(value)
@@ -257,7 +257,7 @@ async function* readPngFrames(response, maxFrameBytes) {
       buffer = appendBytes(buffer, value, maxBuffered)
     }
   } finally {
-    await reader.cancel().catch(() => {})
+    try { await reader.cancel() } catch {}
     try { reader.releaseLock?.() } catch {}
   }
 }

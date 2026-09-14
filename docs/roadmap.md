@@ -4,7 +4,7 @@ The product direction is described in [`product-vision.md`](product-vision.md). 
 
 > A phase is `DONE` only when its exit criteria are satisfied on `main`. Work on a branch is `ACTIVE`, not complete.
 
-Last updated: 2026-09-13
+Last updated: 2026-09-14
 
 ## Status
 
@@ -18,7 +18,7 @@ Last updated: 2026-09-13
 | 4 — tasks, traces & visual QA | **PARTIAL** | Bounded task evidence PR #19, latest-trace drill-down PR #21 and ephemeral visual QA checkpoint PR #22 merged; replay and model-image handoff remain gated |
 | 5 — installation & agent experience | **PARTIAL** | MCP config + rules skill + truthful bounded setup/status UX PR #24 merged; automatic profile mutation and vision affordances remain gated |
 | 6 — autonomous mobile computer-use | **PLANNED** | Build bounded code→build→ARTEMIS→observe→verify→fix workflows |
-| 7 — compatibility & polish | **ONGOING** | Security, privacy and release hardening merged through PR #49; real pinned ARTEMIS daemon compatibility is proven, while real device/emulator smoke and remaining release polish stay open |
+| 7 — compatibility & polish | **ONGOING** | Security, privacy, response-boundary and cleanup hardening merged through PR #66; real pinned ARTEMIS daemon compatibility is proven, while real device/emulator smoke and remaining release polish stay open |
 
 ## Non-negotiable foundations
 
@@ -96,7 +96,7 @@ Remaining gates:
 
 ## Phase 7 — compatibility and polish
 
-**Status: ONGOING — hardening merged through PR #49**
+**Status: ONGOING — hardening merged through PR #66**
 
 Delivered:
 - [x] PR #26: browser response baseline (`no-store`, `nosniff`) applies before route logic/trust rejection.
@@ -111,6 +111,9 @@ Delivered:
 - [x] PR #44: raw browser E2E stdout/stderr is suppressed behind a bounded redacted runner; only allow-listed phase/exit metadata can reach CI logs.
 - [x] PR #47: every checkout disables credential persistence; repository tests prevent regressions.
 - [x] PR #49: audited `actions/checkout`/`actions/setup-node` revisions use the Node 24 Action runtime, remain full-SHA pinned, and are locked by repository invariants.
+- [x] PR #50–#56: roadmap continuity, streamed browser JSON/snapshot accounting, safe ARTEMIS/Harness failure summaries, literal-loopback enforcement and Host JSON integrity hardening.
+- [x] PR #57–#61: Host live/evidence stream validation plus exact JSON MIME and strict shared `Content-Length` policy across browser/Host/evidence boundaries.
+- [x] PR #62–#66: browser/Host cleanup-error preservation, browser response isolation headers and synchronous cleanup hardening for live/JSON readers.
 - [x] Runtime-affecting PR heads continue to pass pinned DeepSeek Harness package/Cordis/Web/Chromium gates; ARTEMIS-facing changes also pass the real daemon compatibility gate.
 
 Remaining Phase 7 gates:

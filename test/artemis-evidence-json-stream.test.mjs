@@ -84,3 +84,22 @@ test('evidence JSON reader rejects invalid UTF-8 before JSON parsing', async () 
     (error) => error instanceof ArtemisProtocolError && error.code === 'invalid-json',
   )
 })
+
+test('evidence JSON reader preserves response-too-large when cancel throws synchronously', async () => {
+  let cancelled = false
+  let released = false
+  const reader = {
+    async read() { return { done: false, value: Uint8Array.from([1, 2, 3, 4, 5]) } },
+    cancel() {
+      cancelled = true
+      throw new Error('cancel failed synchronously')
+    },
+    releaseLock() { released = true },
+  }
+  await assert.rejects(
+    getTaskStatus(evidenceClient(reader, { maxJsonBytes: 4 })),
+    (error) => error instanceof ArtemisProtocolError && error.code === 'response-too-large',
+  )
+  assert.equal(cancelled, true)
+  assert.equal(released, true)
+})
