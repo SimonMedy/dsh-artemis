@@ -81,3 +81,26 @@ test('Host JSON reader rejects invalid UTF-8 even when replacement decoding woul
     (error) => error instanceof ArtemisProtocolError && error.code === 'invalid-json',
   )
 })
+
+test('Host JSON reader preserves response-too-large when cancel throws synchronously', async () => {
+  let cancelled = false
+  let released = false
+  const reader = {
+    async read() { return { done: false, value: Uint8Array.from([1, 2, 3, 4, 5]) } },
+    cancel() {
+      cancelled = true
+      throw new Error('cancel failed synchronously')
+    },
+    releaseLock() { released = true },
+  }
+  const client = new ArtemisHttpClient({
+    maxJsonBytes: 4,
+    fetchImpl: async () => responseWithReader(reader),
+  })
+  await assert.rejects(
+    client.health(),
+    (error) => error instanceof ArtemisProtocolError && error.code === 'response-too-large',
+  )
+  assert.equal(cancelled, true)
+  assert.equal(released, true)
+})
