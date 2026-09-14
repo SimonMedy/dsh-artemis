@@ -1,3 +1,4 @@
+import { parseDecimalContentLength } from '../shared/content-length.mjs'
 import { isJsonContentType } from '../shared/json-content-type.mjs'
 const DEFAULT_BASE_URL = 'http://127.0.0.1:8000'
 const DEFAULT_TIMEOUT_MS = 2_000
@@ -74,11 +75,10 @@ async function readJsonWithinLimit(response, endpoint, maxBytes) {
   }
   const declaredText = response.headers.get('content-length')
   if (declaredText !== null) {
-    if (!/^\d+$/.test(declaredText)) {
-      throw new ArtemisProtocolError(`${endpoint} returned an invalid Content-Length`, { code: 'invalid-content-length' })
-    }
-    const declared = Number(declaredText)
-    if (!Number.isSafeInteger(declared)) {
+    let declared
+    try {
+      declared = parseDecimalContentLength(declaredText)
+    } catch {
       throw new ArtemisProtocolError(`${endpoint} returned an invalid Content-Length`, { code: 'invalid-content-length' })
     }
     if (declared > maxBytes) {
