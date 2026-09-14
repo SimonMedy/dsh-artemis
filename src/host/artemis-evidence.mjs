@@ -1,3 +1,4 @@
+import { isJsonContentType } from '../shared/json-content-type.mjs'
 import { ArtemisProtocolError } from './artemis-http.mjs'
 import { DSH_ARTEMIS_PROTOCOL_VERSION, EVIDENCE_ROUTE, TRACE_EVIDENCE_ROUTE } from '../shared/protocol.mjs'
 
@@ -45,7 +46,7 @@ function arrayCount(value, label) {
 
 async function readJsonWithinLimit(response, endpoint, maxBytes) {
   const contentType = response.headers.get('content-type') ?? ''
-  if (!contentType.toLowerCase().includes('application/json')) {
+  if (!isJsonContentType(contentType)) {
     throw new ArtemisProtocolError(`${endpoint} returned an unexpected content type`, { code: 'unexpected-content-type' })
   }
   const declaredText = response.headers.get('content-length')
