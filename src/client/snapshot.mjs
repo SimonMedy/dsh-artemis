@@ -7,6 +7,7 @@ const PNG_SIGNATURE = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a,
 function validWebLocation(locationLike) {
   return locationLike && (locationLike.protocol === 'http:' || locationLike.protocol === 'https:')
 }
+
 export function snapshotEndpoint(locationLike = globalThis.location) {
   if (!validWebLocation(locationLike)) return null
   return new URL(SNAPSHOT_ROUTE, locationLike.origin).href
@@ -16,6 +17,7 @@ function hasPngSignature(bytes) {
   return bytes.byteLength >= PNG_SIGNATURE.byteLength
     && PNG_SIGNATURE.every((value, index) => bytes[index] === value)
 }
+
 async function readResponseBytes(response, maxBytes) {
   const declaredText = response.headers.get('content-length')
   if (declaredText !== null) {
@@ -25,6 +27,7 @@ async function readResponseBytes(response, maxBytes) {
     if (declared > maxBytes) throw new Error('Android snapshot exceeded the browser size limit')
   }
   if (!response.body) throw new Error('Android snapshot returned an empty body')
+
   const reader = response.body.getReader()
   const chunks = []
   let size = 0
@@ -52,6 +55,7 @@ async function readResponseBytes(response, maxBytes) {
   }
   return data
 }
+
 export async function fetchSnapshot({
   fetchImpl = globalThis.fetch,
   locationLike = globalThis.location,
@@ -80,6 +84,7 @@ export async function fetchSnapshot({
   if (!hasPngSignature(data)) throw new Error('Android snapshot was not a valid PNG')
   return Object.freeze({ mediaType: 'image/png', data, bytes: data.byteLength })
 }
+
 export function createSnapshotObjectUrl(snapshot, { BlobImpl = globalThis.Blob, URLImpl = globalThis.URL } = {}) {
   if (!snapshot || snapshot.mediaType !== 'image/png' || !(snapshot.data instanceof Uint8Array)) {
     throw new TypeError('A validated PNG snapshot is required')

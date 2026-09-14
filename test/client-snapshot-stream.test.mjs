@@ -13,6 +13,7 @@ function responseWithReader(reader, headers = {}) {
     body: { getReader: () => reader },
   }
 }
+
 test('snapshot rejects non-Uint8Array stream chunks before size accounting', async () => {
   let released = false
   const reader = {
@@ -29,6 +30,7 @@ test('snapshot rejects non-Uint8Array stream chunks before size accounting', asy
   )
   assert.equal(released, true)
 })
+
 test('snapshot preserves the size-limit error when stream cancellation fails', async () => {
   let released = false
   let cancelled = false
