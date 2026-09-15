@@ -6,35 +6,18 @@ import { pathToFileURL } from 'node:url'
 
 const MAX_COUNT = 999_999
 const MAX_REPORTED_BYTES = 999_999_999
+const DEFAULT_MAX_SCAN_BYTES = 8 * 1024 * 1024
 
 function increment(value) {
   return value >= MAX_COUNT ? MAX_COUNT : value + 1
 }
 
-export async function summarizeArtemisLog(filePath) {
-  if (typeof filePath !== 'string' || !filePath.trim()) throw new TypeError('ARTEMIS log path is required')
-
-  let info
-  try {
-    info = await stat(filePath)
-  } catch {
-    return Object.freeze({
-      present: false,
-      bytes: 0,
-      lines: 0,
-      errors: 0,
-      warnings: 0,
-      traceback: false,
-      exception: false,
-      adb: false,
-    })
-  }
-
-  if (!info.isFile()) throw new Error('ARTEMIS log path is not a regular file')
-
-  const summary = {
-    present: true,
-    bytes: Math.min(info.size, MAX_REPORTED_BYTES),
+function emptySummary() {
+  return {
+    present: false,
+    bytes: 0,
+    scannedBytes: 0,
+    truncated: false,
     lines: 0,
     errors: 0,
     warnings: 0,
@@ -42,8 +25,39 @@ export async function summarizeArtemisLog(filePath) {
     exception: false,
     adb: false,
   }
+}
 
-  const input = createReadStream(filePath, { encoding: 'utf8' })
+export async function summarizeArtemisLog(filePath, { maxScanBytes = DEFAULT_MAX_SCAN_BYTES } = {}) {
+  if (typeof filePath !== 'string' || !filePath.trim()) throw new TypeError('ARTEMIS log path is required')
+  if (!Number.isSafeInteger(maxScanBytes) || maxScanBytes <= 0) throw new TypeError('maxScanBytes must be a positive safe integer')
+
+  let info
+  try {
+    info = await stat(filePath)
+  } catch {
+    return Object.freeze(emptySummary())
+  }
+
+  if (!info.isFile()) throw new Error('ARTEMIS log path is not a regular file')
+  const scannedBytes = Math.min(info.size, maxScanBytes)
+  const summary = {
+    present: true,
+    bytes: Math.min(info.size, MAX_REPORTED_BYTES),
+    scannedBytes,
+    truncated: info.size > maxScanBytes,
+    lines: 0,
+    errors: 0,
+    warnings: 0,
+    traceback: false,
+    exception: false,
+    adb: false,
+  }
+  if (scannedBytes === 0) return Object.freeze(summary)
+
+  const input = createReadStream(filePath, {
+    encoding: 'utf8',
+    end: scannedBytes - 1,
+  })
   const lines = createInterface({ input, crlfDelay: Infinity })
   try {
     for await (const line of lines) {
@@ -67,6 +81,8 @@ export function formatArtemisLogSummary(summary) {
     '[dsh-artemis-real-daemon] log-summary',
     `present=${summary.present}`,
     `bytes=${summary.bytes}`,
+    `scannedBytes=${summary.scannedBytes}`,
+    `truncated=${summary.truncated}`,
     `lines=${summary.lines}`,
     `errors=${summary.errors}`,
     `warnings=${summary.warnings}`,
@@ -78,15 +94,6 @@ export function formatArtemisLogSummary(summary) {
 
 const invokedPath = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null
 if (invokedPath === import.meta.url) {
-  const summary = await summarizeArtemisLog(process.argv[2]).catch(() => ({
-    present: false,
-    bytes: 0,
-    lines: 0,
-    errors: 0,
-    warnings: 0,
-    traceback: false,
-    exception: false,
-    adb: false,
-  }))
+  const summary = await summarizeArtemisLog(process.argv[2]).catch(() => emptySummary())
   process.stdout.write(`${formatArtemisLogSummary(summary)}\n`)
 }

@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url'
 
 const MAX_COUNT = 999_999
 const MAX_REPORTED_BYTES = 999_999_999
+const DEFAULT_MAX_SCAN_BYTES = 8 * 1024 * 1024
 const MODES = new Set(['build', 'web'])
 
 function increment(value) {
@@ -17,6 +18,8 @@ function emptySummary(mode, present = false) {
     mode,
     present,
     bytes: 0,
+    scannedBytes: 0,
+    truncated: false,
     lines: 0,
     errors: 0,
     warnings: 0,
@@ -27,9 +30,10 @@ function emptySummary(mode, present = false) {
   }
 }
 
-export async function summarizeHarnessLog(filePath, { mode = 'build' } = {}) {
+export async function summarizeHarnessLog(filePath, { mode = 'build', maxScanBytes = DEFAULT_MAX_SCAN_BYTES } = {}) {
   if (typeof filePath !== 'string' || !filePath.trim()) throw new TypeError('DeepSeek Harness log path is required')
   if (!MODES.has(mode)) throw new TypeError('DeepSeek Harness log mode must be build or web')
+  if (!Number.isSafeInteger(maxScanBytes) || maxScanBytes <= 0) throw new TypeError('maxScanBytes must be a positive safe integer')
 
   let info
   try {
@@ -41,10 +45,16 @@ export async function summarizeHarnessLog(filePath, { mode = 'build' } = {}) {
 
   const summary = emptySummary(mode, true)
   summary.bytes = Math.min(info.size, MAX_REPORTED_BYTES)
+  summary.scannedBytes = Math.min(info.size, maxScanBytes)
+  summary.truncated = info.size > maxScanBytes
+  if (summary.scannedBytes === 0) return Object.freeze(summary)
+
   let raceWebServer = false
   let raceCarrier = false
-
-  const input = createReadStream(filePath, { encoding: 'utf8' })
+  const input = createReadStream(filePath, {
+    encoding: 'utf8',
+    end: summary.scannedBytes - 1,
+  })
   const lines = createInterface({ input, crlfDelay: Infinity })
   try {
     for await (const line of lines) {
@@ -61,6 +71,7 @@ export async function summarizeHarnessLog(filePath, { mode = 'build' } = {}) {
     lines.close()
     input.destroy()
   }
+
   summary.startupRace = raceWebServer && raceCarrier
   return Object.freeze(summary)
 }
@@ -71,6 +82,8 @@ export function formatHarnessLogSummary(summary) {
     `mode=${summary.mode}`,
     `present=${summary.present}`,
     `bytes=${summary.bytes}`,
+    `scannedBytes=${summary.scannedBytes}`,
+    `truncated=${summary.truncated}`,
     `lines=${summary.lines}`,
     `errors=${summary.errors}`,
     `warnings=${summary.warnings}`,
