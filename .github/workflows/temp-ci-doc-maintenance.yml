@@ -1,4 +1,4 @@
-name: Temporary CI/doc maintenance patch
+name: Temporary roadmap refresh
 
 on:
   push:
@@ -24,183 +24,82 @@ jobs:
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 22.20.0
-      - name: Patch workflows, invariant test and docs
+      - name: Refresh roadmap
         working-directory: repo
         run: |
           node <<'NODE'
           const fs = require('node:fs')
-
-          function replaceExact(source, oldText, newText, expected, label) {
+          function replaceExact(source, oldText, newText, label) {
             const count = source.split(oldText).length - 1
-            if (count !== expected) throw new Error(`${label}: expected ${expected} matches, found ${count}`)
-            return source.split(oldText).join(newText)
+            if (count !== 1) throw new Error(`${label}: expected one match, found ${count}`)
+            return source.replace(oldText, newText)
           }
-
-          const open = '$' + '{' + '{'
-          const concurrency = [
-            'permissions:',
-            '  contents: read',
-            '',
-            'concurrency:',
-            `  group: ${open} github.workflow }}-${open} github.event.pull_request.number || github.ref }}`,
-            '  cancel-in-progress: true',
-            '',
-          ].join('\n')
-          for (const path of [
-            '.github/workflows/ci.yml',
-            '.github/workflows/harness-compat.yml',
-            '.github/workflows/artemis-compat.yml',
-          ]) {
-            let source = fs.readFileSync(path, 'utf8')
-            if (source.includes('\nconcurrency:\n')) throw new Error(`${path}: concurrency already present`)
-            const match = source.match(/permissions:\n  contents: read\n(?:\n)?/g) ?? []
-            if (match.length !== 1) throw new Error(`${path}: expected one permissions anchor, found ${match.length}`)
-            source = source.replace(/permissions:\n  contents: read\n(?:\n)?/, concurrency)
-            fs.writeFileSync(path, source)
-          }
-
-          const testSource = [
-            "import assert from 'node:assert/strict'",
-            "import { readFile } from 'node:fs/promises'",
-            "import test from 'node:test'",
-            '',
-            "const workflows = [",
-            "  '.github/workflows/ci.yml',",
-            "  '.github/workflows/harness-compat.yml',",
-            "  '.github/workflows/artemis-compat.yml',",
-            ']',
-            '',
-            "const open = '$' + '{' + '{'",
-            "const expectedGroup = `  group: ${open} github.workflow }}-${open} github.event.pull_request.number || github.ref }}`",
-            '',
-            "test('CI workflows cancel superseded runs for the same PR or ref', async () => {",
-            '  for (const path of workflows) {',
-            "    const source = await readFile(path, 'utf8')",
-            "    assert.equal((source.match(/^concurrency:/gm) ?? []).length, 1, `${path} should define concurrency exactly once`)",
-            "    assert.match(source, /^concurrency:\\n  group: .*\\n  cancel-in-progress: true$/m, `${path} should cancel superseded runs`)",
-            "    assert.ok(source.includes(expectedGroup), `${path} should group by workflow and PR/ref`)",
-            '  }',
-            '})',
-            '',
-          ].join('\n')
-          fs.writeFileSync('test/workflow-concurrency.test.mjs', testSource)
-
-          let testing = fs.readFileSync('docs/testing.md', 'utf8')
-          testing = replaceExact(
-            testing,
-            '## CI policy\n\nGitHub Actions is the primary reproducible environment. Contributors should not be required to manually run installation/build/E2E steps that can be encoded safely in CI.\n',
-            '## CI policy\n\nGitHub Actions is the primary reproducible environment. Contributors should not be required to manually run installation/build/E2E steps that can be encoded safely in CI.\n\nThe checked-in workflows use one concurrency group per workflow and pull request/ref with `cancel-in-progress: true`. A newer push may therefore cancel an older run for the same PR or branch, but cancellation is only a resource optimization: every required gate still has to succeed on the final SHA before merge.\n\nRunner selection is explicit in the workflow files. The repository currently targets `ubuntu-latest`; do not retarget public-PR jobs to a personal/self-hosted runner unless a trusted runner label, event isolation and least-privilege policy are configured deliberately.\n',
-            1,
-            'testing CI policy',
-          )
-          fs.writeFileSync('docs/testing.md', testing)
-
           let roadmap = fs.readFileSync('docs/roadmap.md', 'utf8')
-          roadmap = replaceExact(roadmap, 'Last updated: 2026-09-14', 'Last updated: 2026-09-15', 1, 'roadmap date')
+          roadmap = replaceExact(roadmap, 'Last updated: 2026-09-14', 'Last updated: 2026-09-15', 'date')
           roadmap = replaceExact(
             roadmap,
             '| 5 — installation & agent experience | **PARTIAL** | MCP config + rules skill + truthful bounded setup/status UX PR #24 merged; automatic profile mutation and vision affordances remain gated |',
             '| 5 — installation & agent experience | **PARTIAL** | MCP config + rules skill + truthful bounded setup/status UX are merged and reversible plugin lifecycle is proven; automatic profile mutation and vision affordances remain gated |',
-            1,
             'phase 5 status',
           )
           roadmap = replaceExact(
             roadmap,
             '| 7 — compatibility & polish | **ONGOING** | Security, privacy, response-boundary and cleanup hardening merged through PR #66; real pinned ARTEMIS daemon compatibility is proven, while real device/emulator smoke and remaining release polish stay open |',
             '| 7 — compatibility & polish | **ONGOING** | Security, privacy, response-boundary, lifecycle and cleanup hardening merged through PR #69; real pinned Harness/ARTEMIS compatibility is proven, while real device/emulator smoke and remaining release polish stay open |',
-            1,
             'phase 7 status',
           )
           roadmap = replaceExact(
             roadmap,
             '- Real npm packaging, Cordis composition and Chromium journeys are validated against the pinned DeepSeek Harness revision.',
-            '- Real npm packaging, Cordis composition and Chromium journeys are validated against the pinned DeepSeek Harness revision.\n- `dsh-artemis` must remain a reversible Harness/Cordis plugin: public install, remove and reinstall must not patch Harness source or leave stale profile/Cordis state.',
-            1,
+            '- Real npm packaging, Cordis composition and Chromium journeys are validated against the pinned DeepSeek Harness revision.\n- `dsh-artemis` must remain a reversible Harness/Cordis plugin: public instal, remove and reinstall must not patch Harness source or leave stale profile/Cordis state.',
             'plugin lifecycle foundation',
           )
-          roadmap = replaceExact(
-            roadmap,
-            '**Status: ONGOING — hardening merged through PR #66**',
-            '**Status: ONGOING — hardening merged through PR #69**',
-            1,
-            'phase 7 heading',
-          )
+          roadmap = replaceExact(roadmap, '**Status: ONGOING — hardening merged through PR #66**', '**Status: ONGOING — hardening merged through PR #69**', 1, 'phase 7 heading')
           roadmap = replaceExact(
             roadmap,
             '- [x] Runtime-affecting PR heads continue to pass pinned DeepSeek Harness package/Cordis/Web/Chromium gates; ARTEMIS-facing changes also pass the real daemon compatibility gate.',
-            '- [x] PR #67: browser bounded-JSON cleanup preserves primary size-limit errors when reader cancellation throws synchronously.\n- [x] PR #68: public Harness plugin lifecycle is proven end-to-end: install → compose → remove → compose without Artemis → reinstall → authenticated Web + Chromium E2E.\n- [x] PR #69: browser snapshot cleanup contains synchronous cancellation and lock-release failures without masking primary body/protocol errors.\n- [x] Runtime-affecting PR heads continue to pass pinned DeepSeek Harness package/Cordis/Web/Chromium gates; ARTEMIS-facing changes also pass the real daemon compatibility gate.',
-            1,
-            'phase 7 recent deliveries',
+            '- [x] PR #67: browser bounded-JSON cleanup preserves primary size-limit errors when reader cancellation throws synchronously.\n- [x] PR #68: public Harness plugin lifecycle is proven end-to-end: install → compose → remove → compose without Artemis → reinstall → authenticated Web + Chromium E2E.\n- [x] PR #69: browser snapshot cleanup contains synchronous cancellation and lock-release failures without masking primary body/protocol errors.\n- [x] Runtime-affecting PR heads continue to pass pinned DeepSeeek Harness package/Cordis/Web/Chromium gates; ARTEMIS-facing changes also pass the real daemon compatibility gate.',
+            'recent deliveries',
           )
           roadmap = replaceExact(
             roadmap,
             'Phase 5 truthful bounded setup/status merged; profile mutation and model image handoff remain upstream-gated',
             'Phase 5 truthful bounded setup/status + reversible plugin lifecycle proven; profile mutation and model image handoff remain upstream-gated',
-            1,
-            'critical path phase 5',
+            'critical path',
           )
           fs.writeFileSync('docs/roadmap.md', roadmap)
           NODE
-      - name: Validate repository after patch
+      - name: Validate repository after roadmap refresh
         working-directory: repo
         run: npm run check
-      - name: Commit validated maintenance changes to the working branch
+      - name: Commit validated roadmap
         working-directory: repo
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
-          EXPECTED_HEAD: ${{ github.sha }}
         run: |
           node <<'NODE'
           import fs from 'node:fs'
           const api = 'https://api.github.com'
+          const path = 'docs/roadmap.md'
+          const encodedPath = path.split('/').map(encodeURIComponent).join('/')
           const headers = {
             accept: 'application/vnd.github+json',
             authorization: `Bearer ${process.env.GH_TOKEN}`,
             'content-type': 'application/json',
             'x-github-api-version': '2026-03-10',
           }
-          async function request(path, options = {}) {
-            const response = await fetch(`${api}${path}`, { headers, ...options })
-            const text = await response.text()
-            if (!response.ok) throw new Error(`${options.method ?? 'GET'} ${path} failed: ${response.status} ${text}`)
-            return text ? JSON.parse(text) : null
+          const url = `${api}/repos/${process.env.REPO}/contents/${encodedPath}`
+          const get = await fetch(`${url}?ref=${encodeURIComponent(process.env.BRANCH)}`, { headers })
+          if (!get.ok) throw new Error(`GET roadmap: ${get.status} ${await get.text()}`)
+          const current = await get.json()
+          const body = {
+            message: 'docs: refresh roadmap through PR 69',
+            content: Buffer.from(fs.readFileSync(path, 'utf8')).toString('base64'),
+            branch: process.env.BRANCH,
+            sha: current.sha,
           }
-          const encodedBranch = encodeURIComponent(process.env.BRANCH)
-          const branchPath = process.env.BRANCH.split('/').map(encodeURIComponent).join('/')
-          const initialRef = await request(`/repos/${process.env.REPO}/git/ref/heads/${branchPath}`)
-          if (initialRef.object.sha !== process.env.EXPECTED_HEAD) {
-            throw new Error(`branch moved before maintenance writes: expected ${process.env.EXPECTED_HEAD}, found ${initialRef.object.sha}`)
-          }
-          const paths = [
-            '.github/workflows/ci.yml',
-            '.github/workflows/harness-compat.yml',
-            '.github/workflows/artemis-compat.yml',
-            'test/workflow-concurrency.test.mjs',
-            'docs/testing.md',
-            'docs/roadmap.md',
-          ]
-          for (const path of paths) {
-            const encodedPath = path.split('/').map(encodeURIComponent).join('/')
-            const existingResponse = await fetch(`${api}/repos/${process.env.REPO}/contents/${encodedPath}?ref=${encodedBranch}`, { headers })
-            let sha
-            if (existingResponse.ok) {
-              const existing = await existingResponse.json()
-              sha = existing.sha
-            } else if (existingResponse.status !== 404) {
-              throw new Error(`GET ${path} failed: ${existingResponse.status} ${await existingResponse.text()}`)
-            }
-            const body = {
-              message: `ci: maintain ${path}`,
-              content: Buffer.from(fs.readFileSync(path, 'utf8')).toString('base64'),
-              branch: process.env.BRANCH,
-            }
-            if (sha) body.sha = sha
-            await request(`/repos/${process.env.REPO}/contents/${encodedPath}`, {
-              method: 'PUT',
-              body: JSON.stringify(body),
-            })
-          }
-          console.log('Validated maintenance files committed to working branch')
+          const put = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(body) })
+          if (!put.ok) throw new Error(`PUT roadmap: ${put.status} ${await put.text()}`)
           NODE
