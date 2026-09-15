@@ -12,6 +12,7 @@
 - [`testing.md`](testing.md): validation strategy from unit tests to full Harness + ARTEMIS integration.
 - [`ui-native-conventions.md`](ui-native-conventions.md): native Harness sidebar/UI conventions for this plugin.
 - [`upstreams.md`](upstreams.md): pinned DeepSeek Harness and ARTEMIS revisions.
+- [`release-readiness.md`](release-readiness.md): explicit unreleased-package policy, proven release evidence and remaining release gates.
 - [`roadmap.md`](roadmap.md): execution tracker with current phase status and exit criteria.
 - [`../SECURITY.md`](../SECURITY.md): security boundaries, reporting policy and secure implementation requirements.
 
