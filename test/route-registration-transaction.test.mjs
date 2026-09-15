@@ -92,6 +92,7 @@ test('plugin apply rolls back Host routes when evidence registration fails', () 
 test('plugin unload attempts all five route disposers once even if one cleanup fails', () => {
   const cleanupFailure = new Error('trace cleanup failed')
   const disposed = []
+  let effectDisposer
   const ctx = {
     connection: { requestRejection() { return undefined } },
     webServer: {
@@ -103,12 +104,13 @@ test('plugin unload attempts all five route disposers once even if one cleanup f
       },
     },
     effect(register) {
-      return register()
+      effectDisposer = register()
     },
   }
 
-  const dispose = apply(ctx)
-  assert.throws(() => dispose(), (error) => error === cleanupFailure)
+  apply(ctx)
+  assert.equal(typeof effectDisposer, 'function')
+  assert.throws(() => effectDisposer(), (error) => error === cleanupFailure)
   assert.deepEqual(disposed, [
     TRACE_EVIDENCE_ROUTE,
     EVIDENCE_ROUTE,
@@ -116,6 +118,6 @@ test('plugin unload attempts all five route disposers once even if one cleanup f
     SNAPSHOT_ROUTE,
     OVERVIEW_ROUTE,
   ])
-  dispose()
+  effectDisposer()
   assert.equal(disposed.length, 5)
 })
