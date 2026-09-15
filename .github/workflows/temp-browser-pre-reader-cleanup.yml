@@ -1,0 +1,40 @@
+name: Temporary browser pre-reader cleanup patch
+
+on:
+  push:
+    branches: [gpt/phase-7-browser-pre-reader-cleanup]
+    paths:
+      - .github/workflows/temp-browser-pre-reader-cleanup.yml
+      - scripts/temp-fix-browser-pre-reader-cleanup.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22.20.0
+      - name: Apply, bundle and validate browser cleanup
+        run: |
+          node scripts/temp-fix-browser-pre-reader-cleanup.mjs
+          npm run bundle:client
+          git diff --check
+          npm run check
+      - name: Commit validated permanent changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/client/response-body-cleanup.mjs src/client/bounded-json.mjs src/client/evidence-data.mjs src/client/overview.mjs src/client/snapshot.mjs test/bounded-json.test.mjs test/client-evidence.test.mjs test/client-model.test.mjs test/client-snapshot-stream.test.mjs docs/architecture.md lib/client.js
+          git commit -m "fix: cancel rejected browser response bodies"
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c http.extraHeader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$BRANCH"
