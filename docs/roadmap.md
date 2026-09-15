@@ -30,7 +30,7 @@ Last updated: 2026-09-15
 - Screenshots/live frames remain human-facing and ephemeral unless a future public DeepSeek Harness Session-owned image handoff exists.
 - Replay remains policy-gated because pinned ARTEMIS replay can materialize files/chunks.
 - Real npm packaging, Cordis composition and Chromium journeys are validated against the pinned DeepSeek Harness revision.
-- `dsh-artemis` must remain a reversible Harness/Cordis plugin: public instal, remove and reinstall must not patch Harness source or leave stale profile/Cordis state.
+- `dsh-artemis` must remain a reversible Harness/Cordis plugin: public install, remove and reinstall must not patch Harness source or leave stale profile/Cordis state.
 - A real pinned ARTEMIS daemon is installed from its lockfile and exercised on loopback without model credentials or device commands.
 
 ## Phase 3 — bounded device controls
@@ -118,7 +118,7 @@ Delivered:
 - [x] PR #67: browser bounded-JSON cleanup preserves primary size-limit errors when reader cancellation throws synchronously.
 - [x] PR #68: public Harness plugin lifecycle is proven end-to-end: install → compose → remove → compose without Artemis → reinstall → authenticated Web + Chromium E2E.
 - [x] PR #69: browser snapshot cleanup contains synchronous cancellation and lock-release failures without masking primary body/protocol errors.
-- [x] Runtime-affecting PR heads continue to pass pinned DeepSeeek Harness package/Cordis/Web/Chromium gates; ARTEMIS-facing changes also pass the real daemon compatibility gate.
+- [x] Runtime-affecting PR heads continue to pass pinned DeepSeek Harness package/Cordis/Web/Chromium gates; ARTEMIS-facing changes also pass the real daemon compatibility gate.
 
 Remaining Phase 7 gates:
 - [ ] Add a real ARTEMIS + supported Android emulator/device smoke when dedicated infrastructure is available. Pinned ARTEMIS itself keeps device/E2E suites off ordinary GitHub-hosted runners, so the daemon smoke must not be represented as device E2E.
