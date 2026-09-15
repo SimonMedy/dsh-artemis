@@ -23,7 +23,7 @@ Owns JSON-safe DTOs and protocol names. It must not import browser-only, Node-on
 
 ### `src/host`
 
-Owns local connectivity, ARTEMIS discovery/status, device metadata and user-initiated device controls. It is the compatibility boundary for ARTEMIS and host-side Harness APIs.
+Owns local connectivity, ARTEMIS discovery/status, device metadata and user-initiated device controls. It is the compatibility boundary for ARTEMIS and host-side Harness APIs. ARTEMIS response fields are type-checked at this boundary without implicit string/boolean coercion so malformed upstream values fail closed before they reach panel DTOs.
 
 ### `src/client`
 

@@ -50,7 +50,10 @@ function expectObject(value, endpoint) {
 
 function optionalString(value) {
   if (value === null || value === undefined) return null
-  const text = String(value).trim()
+  if (typeof value !== 'string') {
+    throw new ArtemisProtocolError('ARTEMIS returned a non-string protocol field', { code: 'invalid-json' })
+  }
+  const text = value.trim()
   return text || null
 }
 
@@ -60,12 +63,15 @@ function normalizeDevice(value) {
   if (!serial) throw new ArtemisProtocolError('/api/devices contained a device without a serial number')
   const state = (optionalString(item.state ?? item.status) ?? 'unknown').toLowerCase()
   const busyValue = item.busy ?? item.is_busy
+  if (busyValue !== null && busyValue !== undefined && typeof busyValue !== 'boolean') {
+    throw new ArtemisProtocolError('/api/devices contained a device with a non-boolean busy field', { code: 'invalid-json' })
+  }
   return Object.freeze({
     serial,
     state,
     model: optionalString(item.model),
     product: optionalString(item.product),
-    busy: Boolean(busyValue) || ['busy', 'running', 'locked'].includes(state),
+    busy: busyValue ?? ['busy', 'running', 'locked'].includes(state),
   })
 }
 

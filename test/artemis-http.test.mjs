@@ -133,3 +133,33 @@ test('snapshot rejects oversize, unexpected part type and invalid PNG signature'
     })
   })
 })
+
+
+test('device normalization rejects implicit protocol type coercion', async (t) => {
+  await t.test('busy string is rejected instead of becoming truthy', async () => {
+    await withServer((_req, res) => json(res, { devices: [{ serial: 'emulator-5554', state: 'device', busy: 'false' }] }), async (baseUrl) => {
+      await assert.rejects(
+        new ArtemisHttpClient({ baseUrl }).listDevices(),
+        (error) => error instanceof ArtemisProtocolError && error.code === 'invalid-json',
+      )
+    })
+  })
+
+  await t.test('structured serial is rejected instead of being stringified', async () => {
+    await withServer((_req, res) => json(res, { devices: [{ serial: { raw: 'emulator-5554' }, state: 'device', busy: false }] }), async (baseUrl) => {
+      await assert.rejects(
+        new ArtemisHttpClient({ baseUrl }).listDevices(),
+        (error) => error instanceof ArtemisProtocolError && error.code === 'invalid-json',
+      )
+    })
+  })
+
+  await t.test('numeric status is rejected instead of being stringified', async () => {
+    await withServer((_req, res) => json(res, { status: 1 }), async (baseUrl) => {
+      await assert.rejects(
+        new ArtemisHttpClient({ baseUrl }).health(),
+        (error) => error instanceof ArtemisProtocolError && error.code === 'invalid-json',
+      )
+    })
+  })
+})
