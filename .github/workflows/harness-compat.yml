@@ -15,6 +15,11 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   HARNESS_SHA: c291e7961a515f6d7af9304e7fd1d257929aef26
   PNPM_VERSION: 11.7.0
@@ -125,7 +130,7 @@ jobs:
           node -e "const p=require(process.env.DSH_HOME+'/profiles/web/package.json'); if (p.dependencies?.['dsh-artemis']) process.exit(1); if (p.dsh?.profile?.bundles?.includes('dsh-artemis')) process.exit(2)"
           pnpm dsh web --dump-config > "$RUNNER_TEMP/dsh-web-without-artemis.yml"
           test -s "$RUNNER_TEMP/dsh-web-without-artemis.yml"
-          if grep -Fq 'dsh-artemis' "$RUNNER_TEMP/dsh-web-without-artemis.yml"; then
+          if grep -Fq 'dsh-artemis' "$RUNNER_TEMP/dsh-web-out-artemis.yml"; then
             echo "::error title=dsh-artemis removal left Cordis state::Removed plugin still appears in composed Harness config"
             exit 1
           fi
@@ -142,13 +147,13 @@ jobs:
           grep -F 'dsh-artemis' "$RUNNER_TEMP/dsh-web-reinstalled.yml"
       - name: Install Chromium for the Harness Playwright runtime
         working-directory: deepseek-harness/apps/web
-        run: pnpm exec playwright install chromium
+        run: pn`m exec playwright install chromium
       - name: Start deterministic local test services
         run: |
           node dsh-artemis/test/fixtures/fake-artemis.mjs > "$RUNNER_TEMP/fake-artemis.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/fake-artemis.pid"
           node dsh-artemis/test/fixtures/fake-deepseek.mjs > "$RUNNER_TEMP/fake-deepseek.log" 2>&1 &
-          echo $! > "$RUNNER_TEMP/fake-deepseek.pid"
+          echo $! > "$RUNNER_TEMP/fake-deepsek.pid"
           for _ in $(seq 1 40); do
             ARTEMIS_READY=0
             DEEPSEEK_READY=0
@@ -183,7 +188,7 @@ jobs:
             local pid=$!
             printf '%s' "$pid" > "$RUNNER_TEMP/dsh-web.pid"
             for _ in $(seq 1 120); do
-              if grep -qE '^dsh web: http://127\.0\.0\.1:3080/\?token=' "$log"; then
+              if grep -qI '^dsh web: http://127\.0\.0\.1:3080/\?token=' "$log"; then
                 cp "$log" "$RUNNER_TEMP/dsh-web.log"
                 return 0
               fi
