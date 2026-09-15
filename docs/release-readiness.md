@@ -13,6 +13,7 @@
 - CI failure diagnostics are aggregated/redacted and scan only a bounded log prefix.
 - Live multipart frame accumulation is bounded with amortized buffer growth, and bounded evidence selection does not retain a second normalized full-history array.
 - Browser JSON/evidence/overview/snapshot rejection paths explicitly cancel unread response bodies before reader acquisition without masking their primary errors.
+- Host ARTEMIS protocol fields are type-checked without implicit string/boolean coercion, so malformed upstream values fail closed before they become panel DTO data.
 
 ## Remaining release gates
 
