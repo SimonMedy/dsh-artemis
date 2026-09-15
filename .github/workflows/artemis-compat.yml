@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  ARTEMIS_SHA: 086078819209c7139d6f833cfdc6d5cc80d9f19a
+  ARTEMIS_SHA: 371aa6df56880643da57b30da936e9812fb0ec66
   UV_VERSION: 0.7.20
 jobs:
   real-daemon-smoke:

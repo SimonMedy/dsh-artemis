@@ -4,8 +4,8 @@ These pins are investigation references, not yet package dependency declarations
 
 | Upstream | Branch | Pinned SHA | Recorded |
 | --- | --- | --- | --- |
-| `deepseek-ai/deepseek-harness` | `master` | `c291e7961a515f6d7af9304e7fd1d257929aef26` | 2026-09-11 |
-| `google/artemis` | `main` | `086078819209c7139d6f833cfdc6d5cc80d9f19a` | 2026-09-11 |
+| `deepseek-ai/deepseek-harness` | `master` | `0d1f50007f9bca3f52b06e1c3074fa14d5fb0720` | 2026-09-15 |
+| `google/artemis` | `main` | `371aa6df56880643da57b30da936e9812fb0ec66` | 2026-09-15 |
 
 ## Policy
 
