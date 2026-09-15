@@ -13,15 +13,32 @@ permissions:
 jobs:
   patch:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 12
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Checkout working branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      - name: Checkout pinned DeepSeek Harness
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: deepseek-ai/deepseek-harness
+          ref: c291e7961a515f6d7af9304e7fd1d257929aef26
+          path: harness
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 22.20.0
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
+      - name: Install pinned Harness dependencies
+        run: pnpm --dir harness install --frozen-lockfile
       - name: Apply, bundle and validate browser cleanup
+        env:
+          DSH_HARNESS_ROOT: ${{ github.workspace }}/harness
         run: |
           node scripts/temp-fix-browser-pre-reader-cleanup.mjs
           npm run bundle:client
