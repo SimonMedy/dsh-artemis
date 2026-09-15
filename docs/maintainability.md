@@ -48,7 +48,7 @@ Do not hide compatibility hacks. Put them in named adapter functions with commen
 - Preserve causes in Host-side logs/tests where useful.
 - Distinguish unavailable/offline conditions from malformed responses and unsupported upstream versions.
 - Timeouts and cancellation should be explicit for network/process operations.
-- Exported Host route registration helpers must return idempotent reverse-order disposers that attempt every cleanup and preserve the first cleanup error.
+- Exported Host route registration helpers must roll back partial registration without masking the primary registration error, then return idempotent reverse-order disposers that attempt every cleanup and preserve the first cleanup error.
 
 ## Testing expectations
 
