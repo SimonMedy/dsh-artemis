@@ -119,3 +119,28 @@ test('snapshot and live accept GET only and sanitize protocol failures', async (
     assert.doesNotMatch(await failed.text(), /private live detail/)
   })
 })
+
+
+test('Host route disposer attempts all routes once and preserves the first cleanup error', () => {
+  const registrations = []
+  const cleanupFailure = new Error('live cleanup failed')
+  const disposed = []
+  const ctx = {
+    webServer: {
+      register(route) {
+        registrations.push(route)
+        return () => {
+          disposed.push(route.path)
+          if (route.path === LIVE_ROUTE) throw cleanupFailure
+        }
+      },
+    },
+    connection: { requestRejection() { return undefined } },
+  }
+
+  const dispose = registerArtemisHostRoutes(ctx, readyClient())
+  assert.throws(() => dispose(), (error) => error === cleanupFailure)
+  assert.deepEqual(disposed, [LIVE_ROUTE, SNAPSHOT_ROUTE, OVERVIEW_ROUTE])
+  dispose()
+  assert.deepEqual(disposed, [LIVE_ROUTE, SNAPSHOT_ROUTE, OVERVIEW_ROUTE])
+})

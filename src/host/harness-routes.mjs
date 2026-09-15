@@ -222,7 +222,14 @@ export function registerArtemisHostRoutes(ctx, client, { setupStatus } = {}) {
     ctx.webServer.register({ kind: 'exact', path: SNAPSHOT_ROUTE, handler: createSnapshotHandler(client, { requestRejection }) }),
     ctx.webServer.register({ kind: 'exact', path: LIVE_ROUTE, handler: createLiveHandler(client, { requestRejection }) }),
   ]
+  let disposed = false
   return () => {
-    for (const dispose of disposers.reverse()) dispose?.()
+    if (disposed) return
+    disposed = true
+    let firstError
+    for (let index = disposers.length - 1; index >= 0; index -= 1) {
+      try { disposers[index]?.() } catch (error) { firstError ??= error }
+    }
+    if (firstError) throw firstError
   }
 }
