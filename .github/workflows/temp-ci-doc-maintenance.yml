@@ -144,7 +144,7 @@ jobs:
       - name: Validate repository after patch
         working-directory: repo
         run: npm run check
-      - name: Commit validated maintenance changes atomically
+      - name: Commit validated maintenance changes to the working branch
         working-directory: repo
         env:
           GH_TOKEN: ${{ github.token }}
@@ -167,10 +167,12 @@ jobs:
             if (!response.ok) throw new Error(`${options.method ?? 'GET'} ${path} failed: ${response.status} ${text}`)
             return text ? JSON.parse(text) : null
           }
+          const encodedBranch = encodeURIComponent(process.env.BRANCH)
           const branchPath = process.env.BRANCH.split('/').map(encodeURIComponent).join('/')
-          const ref = await request(`/repos/${process.env.REPO}/git/ref/heads/${branchPath}`)
-          if (ref.object.sha !== process.env.EXPECTED_HEAD) throw new Error(`branch moved before maintenance commit: expected ${process.env.EXPECTED_HEAD}, found ${ref.object.sha}`)
-          const commit = await request(`/repos/${process.env.REPO}/git/commits/${ref.object.sha}`)
+          const initialRef = await request(`/repos/${process.env.REPO}/git/ref/heads/${branchPath}`)
+          if (initialRef.object.sha !== process.env.EXPECTED_HEAD) {
+            throw new Error(`branch moved before maintenance writes: expected ${process.env.EXPECTED_HEAD}, found ${initialRef.object.sha}`)
+          }
           const paths = [
             '.github/workflows/ci.yml',
             '.github/workflows/harness-compat.yml',
@@ -179,31 +181,26 @@ jobs:
             'docs/testing.md',
             'docs/roadmap.md',
           ]
-          const tree = await request(`/repos/${process.env.REPO}/git/trees`, {
-            method: 'POST',
-            body: JSON.stringify({
-              base_tree: commit.tree.sha,
-              tree: paths.map((path) => ({
-                path,
-                mode: '100644',
-                type: 'blob',
-                content: fs.readFileSync(path, 'utf8'),
-              })),
-            }),
-          })
-          const next = await request(`/repos/${process.env.REPO}/git/commits`, {
-            method: 'POST',
-            body: JSON.stringify({
-              message: 'ci: cancel superseded compatibility runs',
-              tree: tree.sha,
-              parents: [ref.object.sha],
-            }),
-          })
-          const current = await request(`/repos/${process.env.REPO}/git/ref/heads/${branchPath}`)
-          if (current.object.sha !== ref.object.sha) throw new Error('branch moved during maintenance commit')
-          await request(`/repos/${process.env.REPO}/git/refs/heads/${branchPath}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ sha: next.sha, force: false }),
-          })
-          console.log(`Created ${next.sha}`)
+          for (const path of paths) {
+            const encodedPath = path.split('/').map(encodeURIComponent).join('/')
+            const existingResponse = await fetch(`${api}/repos/${process.env.REPO}/contents/${encodedPath}?ref=${encodedBranch}`, { headers })
+            let sha
+            if (existingResponse.ok) {
+              const existing = await existingResponse.json()
+              sha = existing.sha
+            } else if (existingResponse.status !== 404) {
+              throw new Error(`GET ${path} failed: ${existingResponse.status} ${await existingResponse.text()}`)
+            }
+            const body = {
+              message: `ci: maintain ${path}`,
+              content: Buffer.from(fs.readFileSync(path, 'utf8')).toString('base64'),
+              branch: process.env.BRANCH,
+            }
+            if (sha) body.sha = sha
+            await request(`/repos/${process.env.REPO}/contents/${encodedPath}`, {
+              method: 'PUT',
+              body: JSON.stringify(body),
+            })
+          }
+          console.log('Validated maintenance files committed to working branch')
           NODE
