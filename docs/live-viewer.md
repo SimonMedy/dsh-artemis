@@ -26,6 +26,7 @@ The viewer is opt-in. Opening the Android panel does not start a live stream. **
 - Browser input cannot select an upstream URL, path, serial or command.
 - `connection.requestRejection()` runs before ARTEMIS access.
 - `/dsh-artemis/v1/live` accepts `GET` only.
+- Global multipart metadata is validated before reader acquisition; rejection or reader-acquisition failure cancels the unread ARTEMIS response body without masking the primary error.
 - Every upstream multipart frame is parsed and validated independently.
 - Boundary and part-header sizes remain bounded.
 - Fragmented upstream chunks accumulate in a bounded growable buffer with amortized capacity growth, so fragmentation cannot force a full-frame copy on every read.

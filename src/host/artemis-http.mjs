@@ -184,12 +184,24 @@ function hasPngSignature(bytes) {
 }
 
 async function* readPngFrames(response, maxFrameBytes) {
-  const boundary = parseMultipartBoundary(response.headers.get('content-type') ?? '')
+  let boundary
+  try {
+    boundary = parseMultipartBoundary(response.headers.get('content-type') ?? '')
+  } catch (error) {
+    await cancelBodyQuietly(response.body)
+    throw error
+  }
   if (!response.body) throw new ArtemisProtocolError('/api/stream/device-live returned an empty response body')
   const boundaryBytes = new TextEncoder().encode(`--${boundary}\r\n`)
   const headerTerminator = Uint8Array.from([13, 10, 13, 10])
   const maxBuffered = maxFrameBytes + MAX_MULTIPART_HEADER_BYTES + boundaryBytes.byteLength + headerTerminator.byteLength + 2
-  const reader = response.body.getReader()
+  let reader
+  try {
+    reader = response.body.getReader()
+  } catch (error) {
+    await cancelBodyQuietly(response.body)
+    throw error
+  }
   const buffered = new BoundedByteBuffer(maxBuffered)
   let buffer = buffered.view()
   let bodyStart = -1

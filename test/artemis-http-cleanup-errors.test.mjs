@@ -81,3 +81,64 @@ test('live stream HTTP errors abort the internal request signal', async () => {
   assert.ok(requestSignal)
   assert.equal(requestSignal.aborted, true)
 })
+
+
+function liveResponse({ contentType = 'multipart/x-mixed-replace; boundary=frame', body }) {
+  return {
+    ok: true,
+    status: 200,
+    headers: {
+      get(name) {
+        return name.toLowerCase() === 'content-type' ? contentType : null
+      },
+    },
+    body,
+  }
+}
+
+test('live stream pre-reader metadata rejection cancels the unread body without masking protocol errors', async (t) => {
+  for (const [name, contentType, code, cancelImpl] of [
+    ['unexpected content type', 'text/plain', 'unexpected-content-type', () => { throw new Error('cancel failed') }],
+    ['missing boundary', 'multipart/x-mixed-replace', 'invalid-multipart', () => Promise.reject(new Error('cancel failed'))],
+  ]) {
+    await t.test(name, async () => {
+      let cancelled = false
+      const client = new ArtemisHttpClient({
+        fetchImpl: async () => liveResponse({
+          contentType,
+          body: {
+            cancel() {
+              cancelled = true
+              return cancelImpl()
+            },
+          },
+        }),
+      })
+      const iterator = client.streamSnapshots()[Symbol.asyncIterator]()
+      await assert.rejects(
+        iterator.next(),
+        (error) => error instanceof ArtemisProtocolError && error.code === code,
+      )
+      assert.equal(cancelled, true)
+    })
+  }
+})
+
+test('live stream reader acquisition failure cancels the unread body and preserves the original error', async () => {
+  const readerFailure = new Error('reader acquisition failed')
+  let cancelled = false
+  const client = new ArtemisHttpClient({
+    fetchImpl: async () => liveResponse({
+      body: {
+        getReader() { throw readerFailure },
+        cancel() {
+          cancelled = true
+          return Promise.reject(new Error('cancel failed'))
+        },
+      },
+    }),
+  })
+  const iterator = client.streamSnapshots()[Symbol.asyncIterator]()
+  await assert.rejects(iterator.next(), (error) => error === readerFailure)
+  assert.equal(cancelled, true)
+})
