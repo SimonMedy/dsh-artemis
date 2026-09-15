@@ -4,7 +4,7 @@ The product direction is described in [`product-vision.md`](product-vision.md). 
 
 > A phase is `DONE` only when its exit criteria are satisfied on `main`. Work on a branch is `ACTIVE`, not complete.
 
-Last updated: 2026-09-14
+Last updated: 2026-09-15
 
 ## Status
 
@@ -16,9 +16,9 @@ Last updated: 2026-09-14
 | 2 — live human screen | **DONE** | Bounded multi-frame transport, explicit Start/Stop viewer and packaged DeepSeek Harness/Chromium E2E merged through PR #18 |
 | 3 — bounded device controls | **BLOCKED** | Pinned ARTEMIS exposes Back/Home/Recents only through a broader action/ADB surface; no narrow configured-MCP/Admin transport and no canonical Rotate contract |
 | 4 — tasks, traces & visual QA | **PARTIAL** | Bounded task evidence PR #19, latest-trace drill-down PR #21 and ephemeral visual QA checkpoint PR #22 merged; replay and model-image handoff remain gated |
-| 5 — installation & agent experience | **PARTIAL** | MCP config + rules skill + truthful bounded setup/status UX PR #24 merged; automatic profile mutation and vision affordances remain gated |
+| 5 — installation & agent experience | **PARTIAL** | MCP config + rules skill + truthful bounded setup/status UX are merged and reversible plugin lifecycle is proven; automatic profile mutation and vision affordances remain gated |
 | 6 — autonomous mobile computer-use | **PLANNED** | Build bounded code→build→ARTEMIS→observe→verify→fix workflows |
-| 7 — compatibility & polish | **ONGOING** | Security, privacy, response-boundary and cleanup hardening merged through PR #66; real pinned ARTEMIS daemon compatibility is proven, while real device/emulator smoke and remaining release polish stay open |
+| 7 — compatibility & polish | **ONGOING** | Security, privacy, response-boundary, lifecycle and cleanup hardening merged through PR #69; real pinned Harness/ARTEMIS compatibility is proven, while real device/emulator smoke and remaining release polish stay open |
 
 ## Non-negotiable foundations
 
@@ -30,6 +30,7 @@ Last updated: 2026-09-14
 - Screenshots/live frames remain human-facing and ephemeral unless a future public DeepSeek Harness Session-owned image handoff exists.
 - Replay remains policy-gated because pinned ARTEMIS replay can materialize files/chunks.
 - Real npm packaging, Cordis composition and Chromium journeys are validated against the pinned DeepSeek Harness revision.
+- `dsh-artemis` must remain a reversible Harness/Cordis plugin: public instal, remove and reinstall must not patch Harness source or leave stale profile/Cordis state.
 - A real pinned ARTEMIS daemon is installed from its lockfile and exercised on loopback without model credentials or device commands.
 
 ## Phase 3 — bounded device controls
@@ -96,7 +97,7 @@ Remaining gates:
 
 ## Phase 7 — compatibility and polish
 
-**Status: ONGOING — hardening merged through PR #66**
+**Status: ONGOING — hardening merged through PR #69**
 
 Delivered:
 - [x] PR #26: browser response baseline (`no-store`, `nosniff`) applies before route logic/trust rejection.
@@ -114,7 +115,10 @@ Delivered:
 - [x] PR #50–#56: roadmap continuity, streamed browser JSON/snapshot accounting, safe ARTEMIS/Harness failure summaries, literal-loopback enforcement and Host JSON integrity hardening.
 - [x] PR #57–#61: Host live/evidence stream validation plus exact JSON MIME and strict shared `Content-Length` policy across browser/Host/evidence boundaries.
 - [x] PR #62–#66: browser/Host cleanup-error preservation, browser response isolation headers and synchronous cleanup hardening for live/JSON readers.
-- [x] Runtime-affecting PR heads continue to pass pinned DeepSeek Harness package/Cordis/Web/Chromium gates; ARTEMIS-facing changes also pass the real daemon compatibility gate.
+- [x] PR #67: browser bounded-JSON cleanup preserves primary size-limit errors when reader cancellation throws synchronously.
+- [x] PR #68: public Harness plugin lifecycle is proven end-to-end: install → compose → remove → compose without Artemis → reinstall → authenticated Web + Chromium E2E.
+- [x] PR #69: browser snapshot cleanup contains synchronous cancellation and lock-release failures without masking primary body/protocol errors.
+- [x] Runtime-affecting PR heads continue to pass pinned DeepSeeek Harness package/Cordis/Web/Chromium gates; ARTEMIS-facing changes also pass the real daemon compatibility gate.
 
 Remaining Phase 7 gates:
 - [ ] Add a real ARTEMIS + supported Android emulator/device smoke when dedicated infrastructure is available. Pinned ARTEMIS itself keeps device/E2E suites off ordinary GitHub-hosted runners, so the daemon smoke must not be represented as device E2E.
@@ -131,7 +135,7 @@ Phase 3 safe controls blocked on a narrow upstream contract
         ↓ (independent work can continue)
 Phase 4 bounded evidence + traces + ephemeral visual QA merged
         ↓
-Phase 5 truthful bounded setup/status merged; profile mutation and model image handoff remain upstream-gated
+Phase 5 truthful bounded setup/status + reversible plugin lifecycle proven; profile mutation and model image handoff remain upstream-gated
         ↓
 Phase 7 compatibility/privacy/release hardening continues independently:
 real ARTEMIS daemon compatibility is proven;
