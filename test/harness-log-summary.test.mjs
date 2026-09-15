@@ -26,6 +26,8 @@ test('summarizes DeepSeek Harness logs without reproducing raw content', async (
 
   const summary = await summarizeHarnessLog(log, { mode: 'web' })
   assert.equal(summary.present, true)
+  assert.equal(summary.scannedBytes, summary.bytes)
+  assert.equal(summary.truncated, false)
   assert.equal(summary.lines, 6)
   assert.equal(summary.warnings, 1)
   assert.equal(summary.packageErrors, 1)
@@ -37,6 +39,24 @@ test('summarizes DeepSeek Harness logs without reproducing raw content', async (
   assert.equal(output.includes(secretPath), false)
   assert.equal(output.includes(secretUrl), false)
   assert.equal(output.includes('AUTH-SECRET'), false)
+})
+
+test('DeepSeek Harness log scanning stops at the configured byte bound', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'dsh-harness-log-bound-'))
+  const log = path.join(root, 'harness.log')
+  const prefix = 'WARN before\n'
+  await writeFile(log, `${prefix}ERR_PNPM_AFTER_BOUNDARY\n`)
+
+  const summary = await summarizeHarnessLog(log, {
+    mode: 'build',
+    maxScanBytes: Buffer.byteLength(prefix),
+  })
+  assert.equal(summary.present, true)
+  assert.equal(summary.scannedBytes, Buffer.byteLength(prefix))
+  assert.equal(summary.truncated, true)
+  assert.equal(summary.warnings, 1)
+  assert.equal(summary.packageErrors, 0)
+  assert.equal(formatHarnessLogSummary(summary).includes('truncated=true'), true)
 })
 
 test('CLI output never echoes DeepSeek Harness paths, URLs or tokens', async () => {

@@ -26,6 +26,8 @@ test('summarizes ARTEMIS daemon logs without reproducing raw content', async () 
 
   const summary = await summarizeArtemisLog(log)
   assert.equal(summary.present, true)
+  assert.equal(summary.scannedBytes, summary.bytes)
+  assert.equal(summary.truncated, false)
   assert.equal(summary.lines, 5)
   assert.equal(summary.errors, 1)
   assert.equal(summary.warnings, 1)
@@ -37,6 +39,21 @@ test('summarizes ARTEMIS daemon logs without reproducing raw content', async () 
   assert.equal(output.includes(secretSerial), false)
   assert.equal(output.includes(secretPath), false)
   assert.equal(output.includes(secretUrl), false)
+})
+
+test('ARTEMIS log scanning stops at the configured byte bound', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'dsh-artemis-log-bound-'))
+  const log = path.join(root, 'real-artemis.log')
+  const prefix = 'WARN before\n'
+  await writeFile(log, `${prefix}RuntimeError: after-boundary\n`)
+
+  const summary = await summarizeArtemisLog(log, { maxScanBytes: Buffer.byteLength(prefix) })
+  assert.equal(summary.present, true)
+  assert.equal(summary.scannedBytes, Buffer.byteLength(prefix))
+  assert.equal(summary.truncated, true)
+  assert.equal(summary.warnings, 1)
+  assert.equal(summary.errors, 0)
+  assert.equal(formatArtemisLogSummary(summary).includes('truncated=true'), true)
 })
 
 test('CLI output never echoes daemon paths, URLs or device identifiers', async () => {
