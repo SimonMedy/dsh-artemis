@@ -18,7 +18,7 @@ Last updated: 2026-09-15
 | 4 — tasks, traces & visual QA | **PARTIAL** | Bounded task evidence PR #19, latest-trace drill-down PR #21 and ephemeral visual QA checkpoint PR #22 merged; replay and model-image handoff remain gated |
 | 5 — installation & agent experience | **PARTIAL** | MCP config + rules skill + truthful bounded setup/status UX are merged and reversible plugin lifecycle is proven; automatic profile mutation and vision affordances remain gated |
 | 6 — autonomous mobile computer-use | **PLANNED** | Build bounded code→build→ARTEMIS→observe→verify→fix workflows |
-| 7 — compatibility & polish | **ONGOING** | Security, privacy, response-boundary, lifecycle, CI/resource cleanup and release-readiness hardening merged through PR #90; current Harness/ARTEMIS pins were re-probed and revalidated on 2026-09-15, while real device/emulator smoke, licensing decision and remaining release polish stay open |
+| 7 — compatibility & polish | **ONGOING** | Security, privacy, response-boundary, lifecycle, CI/resource cleanup and release-readiness hardening merged through PR #92; current Harness/ARTEMIS pins were re-probed and revalidated on 2026-09-15, while real device/emulator smoke, licensing decision and remaining release polish stay open |
 
 ## Non-negotiable foundations
 
@@ -97,7 +97,7 @@ Remaining gates:
 
 ## Phase 7 — compatibility and polish
 
-**Status: ONGOING — hardening merged through PR #90**
+**Status: ONGOING — hardening merged through PR #92**
 
 Delivered:
 - [x] PR #26: browser response baseline (`no-store`, `nosniff`) applies before route logic/trust rejection.
@@ -139,6 +139,8 @@ Delivered:
 - [x] PR #88: Host ARTEMIS protocol normalization rejects implicit string/boolean coercion so malformed upstream values fail closed before reaching panel DTOs.
 - [x] PR #89: roadmap and release-readiness evidence are refreshed through PR #88.
 - [x] PR #90: evidence/trace processing requires upstream `step_number` to be a non-negative safe integer and rejects malformed histories before latest-step selection or trace lookup.
+- [x] PR #91: roadmap and release-readiness evidence are refreshed through PR #90.
+- [x] PR #92: rejected live-stream multipart metadata and reader-acquisition failures explicitly cancel unread ARTEMIS response bodies without masking the primary error.
 - [x] Runtime-affecting PR heads continue to pass pinned DeepSeek Harness package/Cordis/Web/Chromium gates; ARTEMIS-facing changes also pass the real daemon compatibility gate.
 
 Remaining Phase 7 gates:

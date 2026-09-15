@@ -15,6 +15,7 @@
 - Browser JSON/evidence/overview/snapshot rejection paths explicitly cancel unread response bodies before reader acquisition without masking their primary errors.
 - Host ARTEMIS protocol fields are type-checked without implicit string/boolean coercion, so malformed upstream values fail closed before they become panel DTO data.
 - Evidence and trace selection require every upstream `step_number` to be a non-negative safe integer before latest-step selection, preventing malformed session histories from silently falling back to response order or triggering downstream trace requests.
+- Live multipart metadata rejection and reader-acquisition failure cancel unread ARTEMIS response bodies before parsing continues, while cleanup failures never replace the primary protocol or reader error.
 
 ## Remaining release gates
 
