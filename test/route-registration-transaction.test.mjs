@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { registerArtemisEvidenceRoute } from '../src/host/artemis-evidence.mjs'
 import { createRouteRegistrationTransaction } from '../src/host/route-registration-transaction.mjs'
 import { apply } from '../src/index.mjs'
 import {
@@ -120,4 +121,49 @@ test('plugin unload attempts all five route disposers once even if one cleanup f
   ])
   effectDisposer()
   assert.equal(disposed.length, 5)
+})
+
+
+test('evidence registration preserves the trace registration error when rollback cleanup fails', () => {
+  const primary = new Error('trace registration failed')
+  let count = 0
+  let cleanupAttempts = 0
+  const ctx = {
+    connection: { requestRejection() { return undefined } },
+    webServer: {
+      register() {
+        count += 1
+        if (count === 2) throw primary
+        return () => {
+          cleanupAttempts += 1
+          throw new Error('evidence cleanup failed')
+        }
+      },
+    },
+  }
+
+  assert.throws(() => registerArtemisEvidenceRoute(ctx, {}), (error) => error === primary)
+  assert.equal(cleanupAttempts, 1)
+})
+
+test('evidence disposer attempts both routes once when trace cleanup fails', () => {
+  const cleanupFailure = new Error('trace cleanup failed')
+  const disposed = []
+  const ctx = {
+    connection: { requestRejection() { return undefined } },
+    webServer: {
+      register(route) {
+        return () => {
+          disposed.push(route.path)
+          if (route.path === TRACE_EVIDENCE_ROUTE) throw cleanupFailure
+        }
+      },
+    },
+  }
+
+  const dispose = registerArtemisEvidenceRoute(ctx, {})
+  assert.throws(() => dispose(), (error) => error === cleanupFailure)
+  assert.deepEqual(disposed, [TRACE_EVIDENCE_ROUTE, EVIDENCE_ROUTE])
+  dispose()
+  assert.deepEqual(disposed, [TRACE_EVIDENCE_ROUTE, EVIDENCE_ROUTE])
 })
