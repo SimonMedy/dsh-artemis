@@ -1,0 +1,41 @@
+name: Temporary Host route disposer patch
+
+on:
+  push:
+    branches: [gpt/phase-7-host-route-disposer]
+    paths:
+      - .github/workflows/temp-host-route-disposer.yml
+      - scripts/temp-fix-host-route-disposer.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout working branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22.20.0
+      - name: Apply and validate Host disposer hardening
+        run: |
+          node scripts/temp-fix-host-route-disposer.mjs
+          git diff --check
+          npm run check
+      - name: Commit validated permanent changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/host/harness-routes.mjs test/harness-routes.test.mjs docs/maintainability.md
+          git commit -m "fix: make Host route disposer exhaustive"
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c http.extraHeader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$BRANCH"
