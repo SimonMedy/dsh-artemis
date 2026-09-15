@@ -1,0 +1,57 @@
+name: Temporary prepare upstream pin refresh
+
+on:
+  push:
+    branches: [gpt/phase-7-refresh-upstream-pins]
+    paths:
+      - .github/workflows/temp-prepare-upstream-pin-refresh.yml
+      - scripts/temp-prepare-upstream-pin-refresh.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout working branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Checkout validated Harness candidate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: deepseek-ai/deepseek-harness
+          ref: 0d1f50007f9bca3f52b06e1c3074fa14d5fb0720
+          path: harness
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22.20.0
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
+      - name: Install validated Harness candidate
+        run: pnpm --dir harness install --frozen-lockfile
+      - name: Apply candidate pins, rebuild bundle and validate
+        env:
+          DSH_HARNESS_ROOT: ${{ github.workspace }}/harness
+        run: |
+          node scripts/temp-prepare-upstream-pin-refresh.mjs
+          npm run bundle:client
+          git diff --check
+          npm run check
+      - name: Commit validated non-workflow changes and staged workflow copies
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/build-client.mjs test/upstream-pin-consistency.test.mjs test/client-build.test.mjs docs/upstreams.md lib/client.js scripts/.staged-harness-compat.yml scripts/.staged-artemis-compat.yml
+          git commit -m "build: refresh validated upstream compatibility pins"
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c http.extraHeader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$BRANCH"
