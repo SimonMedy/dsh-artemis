@@ -6,6 +6,7 @@ on:
       - gpt/phase-7-atomic-plugin-registration
     paths:
       - .github/workflows/temp-evidence-registration-cleanup.yml
+      - scripts/temp-fix-evidence-registration.mjs
 
 permissions:
   contents: write
@@ -23,90 +24,12 @@ jobs:
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 22.20.0
-      - name: Patch evidence cleanup semantics and tests
+      - name: Apply and validate evidence cleanup patch
         run: |
-          node <<'NODE'
-          import fs from 'node:fs'
-
-          const sourcePath = 'src/host/artemis-evidence.mjs'
-          let source = fs.readFileSync(sourcePath, 'utf8')
-          const block = /    return \(\) => \{\n      disposeTraceEvidence\?\.\(\)\n      disposeEvidence\?\.\(\)\n    \}\n  \} catch \(error\) \{\n    disposeEvidence\?\.\(\)\n    throw error\n  \}/
-          const matches = source.match(new RegExp(block.source, 'g')) ?? []
-          if (matches.length !== 1) throw new Error(`evidence cleanup block: expected one match, found ${matches.length}`)
-          source = source.replace(block, `    let disposed = false
-            return () => {
-              if (disposed) return
-              disposed = true
-              let firstError
-              try { disposeTraceEvidence?.() } catch (error) { firstError ??= error }
-              try { disposeEvidence?.() } catch (error) { firstError ??= error }
-              if (firstError) throw firstError
-            }
-          } catch (error) {
-            try { disposeEvidence?.() } catch {}
-            throw error
-          }`)
-          fs.writeFileSync(sourcePath, source)
-
-          const testPath = 'test/route-registration-transaction.test.mjs'
-          let tests = fs.readFileSync(testPath, 'utf8')
-          const importAnchor = "import { createRouteRegistrationTransaction } from '../src/host/route-registration-transaction.mjs'\nimport { apply } from '../src/index.mjs'"
-          if (!tests.includes(importAnchor)) throw new Error('evidence test import anchor missing')
-          tests = tests.replace(
-            importAnchor,
-            "import { registerArtemisEvidenceRoute } from '../src/host/artemis-evidence.mjs'\n" + importAnchor,
-          )
-          tests += `
-
-test('evidence registration preserves the trace registration error when rollback cleanup fails', () => {
-  const primary = new Error('trace registration failed')
-  let count = 0
-  let cleanupAttempts = 0
-  const ctx = {
-    connection: { requestRejection() { return undefined } },
-    webServer: {
-      register() {
-        count += 1
-        if (count === 2) throw primary
-        return () => {
-          cleanupAttempts += 1
-          throw new Error('evidence cleanup failed')
-        }
-      },
-    },
-  }
-
-  assert.throws(() => registerArtemisEvidenceRoute(ctx, {}), (error) => error === primary)
-  assert.equal(cleanupAttempts, 1)
-})
-
-test('evidence disposer attempts both routes once when trace cleanup fails', () => {
-  const cleanupFailure = new Error('trace cleanup failed')
-  const disposed = []
-  const ctx = {
-    connection: { requestRejection() { return undefined } },
-    webServer: {
-      register(route) {
-        return () => {
-          disposed.push(route.path)
-          if (route.path === TRACE_EVIDENCE_ROUTE) throw cleanupFailure
-        }
-      },
-    },
-  }
-
-  const dispose = registerArtemisEvidenceRoute(ctx, {})
-  assert.throws(() => dispose(), (error) => error === cleanupFailure)
-  assert.deepEqual(disposed, [TRACE_EVIDENCE_ROUTE, EVIDENCE_ROUTE])
-  dispose()
-  assert.deepEqual(disposed, [TRACE_EVIDENCE_ROUTE, EVIDENCE_ROUTE])
-})
-`
-          fs.writeFileSync(testPath, tests)
-          NODE
+          node scripts/temp-fix-evidence-registration.mjs
           git diff --check
           npm run check
-      - name: Commit validated patch
+      - name: Commit validated source and test changes
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ github.ref_name }}
