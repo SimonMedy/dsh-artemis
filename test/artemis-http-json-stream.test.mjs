@@ -104,3 +104,40 @@ test('Host JSON reader preserves response-too-large when cancel throws synchrono
   assert.equal(cancelled, true)
   assert.equal(released, true)
 })
+
+
+function responseWithBody({ ok = true, status = 200, contentType = 'application/json', contentLength = null, cancel }) {
+  return {
+    ok,
+    status,
+    headers: { get(name) {
+      const normalized = name.toLowerCase()
+      if (normalized === 'content-type') return contentType
+      if (normalized === 'content-length') return contentLength
+      return null
+    } },
+    body: { cancel },
+  }
+}
+
+test('Host JSON pre-reader rejections cancel response bodies without masking primary errors', async () => {
+  const cases = [
+    { response: responseWithBody({ ok: false, status: 503, cancel() { throw new Error('cancel failed') } }), code: 'http-error' },
+    { response: responseWithBody({ contentType: 'text/plain', cancel() { return Promise.reject(new Error('cancel failed')) } }), code: 'unexpected-content-type' },
+    { response: responseWithBody({ contentLength: '5', cancel() { throw new Error('cancel failed') } }), code: 'response-too-large', maxJsonBytes: 4 },
+  ]
+  for (const { response, code, maxJsonBytes } of cases) {
+    let cancelled = false
+    const originalCancel = response.body.cancel
+    response.body.cancel = () => {
+      cancelled = true
+      return originalCancel()
+    }
+    const client = new ArtemisHttpClient({
+      ...(maxJsonBytes ? { maxJsonBytes } : {}),
+      fetchImpl: async () => response,
+    })
+    await assert.rejects(client.health(), (error) => error instanceof ArtemisProtocolError && error.code === code)
+    assert.equal(cancelled, true)
+  }
+})

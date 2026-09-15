@@ -68,9 +68,14 @@ function normalizeDevice(value) {
   })
 }
 
+async function cancelBodyQuietly(body) {
+  try { await body?.cancel?.() } catch {}
+}
+
 async function readJsonWithinLimit(response, endpoint, maxBytes) {
   const contentType = response.headers.get('content-type') ?? ''
   if (!isJsonContentType(contentType)) {
+    await cancelBodyQuietly(response.body)
     throw new ArtemisProtocolError(`${endpoint} returned an unexpected content type`, { code: 'unexpected-content-type' })
   }
   const declaredText = response.headers.get('content-length')
@@ -79,9 +84,11 @@ async function readJsonWithinLimit(response, endpoint, maxBytes) {
     try {
       declared = parseDecimalContentLength(declaredText)
     } catch {
+      await cancelBodyQuietly(response.body)
       throw new ArtemisProtocolError(`${endpoint} returned an invalid Content-Length`, { code: 'invalid-content-length' })
     }
     if (declared > maxBytes) {
+      await cancelBodyQuietly(response.body)
       throw new ArtemisProtocolError(`${endpoint} response exceeded the configured size limit`, { code: 'response-too-large' })
     }
   }
@@ -301,6 +308,7 @@ export class ArtemisHttpClient {
   async #getJson(endpoint) {
     const response = await this.#request(endpoint, { accept: 'application/json' })
     if (!response.ok) {
+      await cancelBodyQuietly(response.body)
       throw new ArtemisProtocolError(`ARTEMIS returned HTTP ${response.status} for ${endpoint}`, { code: 'http-error' })
     }
     return readJsonWithinLimit(response, endpoint, this.maxJsonBytes)
