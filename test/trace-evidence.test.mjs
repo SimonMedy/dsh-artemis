@@ -115,3 +115,17 @@ test('trace evidence route trusts Harness first and accepts no browser identifie
     assert.doesNotMatch(await failed.text(), /private upstream detail/)
   })
 })
+
+
+test('trace evidence rejects malformed step numbers before requesting a trace tree', async () => {
+  const seen = []
+  const routes = new Map([
+    ['/api/status', () => ({ status: 'running', session_id: 'session-invalid-number', queue: [], active_tasks: [], background_tasks: [] })],
+    ['/api/sessions/session-invalid-number/steps', () => [{ step_id: 'step-invalid-number', step_number: '1', generic_tools: [] }]],
+  ])
+  await assert.rejects(
+    buildTraceEvidence(clientFor(routes, seen)),
+    (error) => error?.code === 'invalid-evidence' && /step_number/.test(error.message),
+  )
+  assert.deepEqual(seen, ['/api/status', '/api/sessions/session-invalid-number/steps'])
+})

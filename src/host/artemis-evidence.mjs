@@ -166,7 +166,10 @@ function normalizeTrace(value) {
 function normalizeStep(value) {
   const step = expectObject(value, 'step')
   const number = step.step_number
-  const stepNumber = Number.isSafeInteger(number) && number >= 0 ? number : null
+  if (!Number.isSafeInteger(number) || number < 0) {
+    throw new ArtemisProtocolError('step.step_number must be a non-negative safe integer', { code: 'invalid-evidence' })
+  }
+  const stepNumber = number
   const rawTraces = step.generic_tools ?? []
   if (!Array.isArray(rawTraces)) {
     throw new ArtemisProtocolError('step.generic_tools must be an array', { code: 'invalid-evidence' })

@@ -143,3 +143,23 @@ test('evidence selects the latest step from a large unordered bounded history', 
   assert.equal(evidence.latestStep.action, 'action-2048')
   assert.equal(evidence.latestStep.traces.length, evidenceLimits.maxTraces)
 })
+
+
+test('evidence rejects malformed upstream step numbers instead of falling back to response order', async (t) => {
+  for (const [name, invalidStep] of [
+    ['missing', { action_taken: { action: 'tap' }, generic_tools: [] }],
+    ['string', { step_number: '2', action_taken: { action: 'tap' }, generic_tools: [] }],
+    ['negative', { step_number: -1, action_taken: { action: 'tap' }, generic_tools: [] }],
+  ]) {
+    await t.test(name, async () => {
+      const routes = new Map([
+        ['/api/status', () => ({ status: 'running', session_id: 'session-invalid-step', queue: [], active_tasks: [], background_tasks: [] })],
+        ['/api/sessions/session-invalid-step/steps', () => [invalidStep]],
+      ])
+      await assert.rejects(
+        buildEvidence(evidenceClient(routes)),
+        (error) => error?.code === 'invalid-evidence' && /step_number/.test(error.message),
+      )
+    })
+  }
+})
