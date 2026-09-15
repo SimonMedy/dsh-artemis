@@ -11,6 +11,7 @@ on:
       - "docs/upstreams.md"
       - ".github/workflows/artemis-compat.yml"
   workflow_dispatch:
+
 permissions:
   contents: read
 
