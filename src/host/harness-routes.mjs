@@ -206,6 +206,14 @@ export function createLiveHandler(client, { requestRejection } = {}) {
     }
   }
 }
+function disposeRegisteredRoutes(disposers, { suppressErrors = false } = {}) {
+  let firstError
+  for (let index = disposers.length - 1; index >= 0; index -= 1) {
+    try { disposers[index]?.() } catch (error) { firstError ??= error }
+  }
+  if (!suppressErrors && firstError) throw firstError
+}
+
 export function registerArtemisHostRoutes(ctx, client, { setupStatus } = {}) {
   if (!ctx?.webServer || typeof ctx.webServer.register !== 'function') {
     throw new TypeError('A Harness webServer service is required')
@@ -217,19 +225,19 @@ export function registerArtemisHostRoutes(ctx, client, { setupStatus } = {}) {
     throw new TypeError('An ARTEMIS client implementing the read-only panel contract is required')
   }
   const requestRejection = (req) => ctx.connection.requestRejection(req)
-  const disposers = [
-    ctx.webServer.register({ kind: 'exact', path: OVERVIEW_ROUTE, handler: createOverviewHandler(client, { requestRejection, setupStatus }) }),
-    ctx.webServer.register({ kind: 'exact', path: SNAPSHOT_ROUTE, handler: createSnapshotHandler(client, { requestRejection }) }),
-    ctx.webServer.register({ kind: 'exact', path: LIVE_ROUTE, handler: createLiveHandler(client, { requestRejection }) }),
-  ]
+  const disposers = []
+  try {
+    disposers.push(ctx.webServer.register({ kind: 'exact', path: OVERVIEW_ROUTE, handler: createOverviewHandler(client, { requestRejection, setupStatus }) }))
+    disposers.push(ctx.webServer.register({ kind: 'exact', path: SNAPSHOT_ROUTE, handler: createSnapshotHandler(client, { requestRejection }) }))
+    disposers.push(ctx.webServer.register({ kind: 'exact', path: LIVE_ROUTE, handler: createLiveHandler(client, { requestRejection }) }))
+  } catch (error) {
+    disposeRegisteredRoutes(disposers, { suppressErrors: true })
+    throw error
+  }
   let disposed = false
   return () => {
     if (disposed) return
     disposed = true
-    let firstError
-    for (let index = disposers.length - 1; index >= 0; index -= 1) {
-      try { disposers[index]?.() } catch (error) { firstError ??= error }
-    }
-    if (firstError) throw firstError
+    disposeRegisteredRoutes(disposers)
   }
 }

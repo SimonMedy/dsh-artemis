@@ -144,3 +144,28 @@ test('Host route disposer attempts all routes once and preserves the first clean
   dispose()
   assert.deepEqual(disposed, [LIVE_ROUTE, SNAPSHOT_ROUTE, OVERVIEW_ROUTE])
 })
+
+
+test('Host route registration rolls back earlier routes without masking the primary error', () => {
+  const registrationFailure = new Error('live registration failed')
+  const cleanupFailure = new Error('snapshot cleanup failed')
+  const disposed = []
+  const ctx = {
+    webServer: {
+      register(route) {
+        if (route.path === LIVE_ROUTE) throw registrationFailure
+        return () => {
+          disposed.push(route.path)
+          if (route.path === SNAPSHOT_ROUTE) throw cleanupFailure
+        }
+      },
+    },
+    connection: { requestRejection() { return undefined } },
+  }
+
+  assert.throws(
+    () => registerArtemisHostRoutes(ctx, readyClient()),
+    (error) => error === registrationFailure,
+  )
+  assert.deepEqual(disposed, [SNAPSHOT_ROUTE, OVERVIEW_ROUTE])
+})
