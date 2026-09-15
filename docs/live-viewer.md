@@ -28,6 +28,7 @@ The viewer is opt-in. Opening the Android panel does not start a live stream. **
 - `/dsh-artemis/v1/live` accepts `GET` only.
 - Every upstream multipart frame is parsed and validated independently.
 - Boundary and part-header sizes remain bounded.
+- Fragmented upstream chunks accumulate in a bounded growable buffer with amortized capacity growth, so fragmentation cannot force a full-frame copy on every read.
 - `Content-Type` must be `image/png` and `Content-Length` must be positive, safe and at most 8 MiB.
 - Every frame must contain a PNG signature and its trailing multipart CRLF.
 - The Host never forwards opaque upstream bytes; it emits a normalized project-owned multipart boundary.

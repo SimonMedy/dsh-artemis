@@ -69,3 +69,30 @@ test('Host live stream preserves protocol errors when cancel throws synchronousl
   assert.equal(cancelled, true)
   assert.equal(released, true)
 })
+
+
+test('Host live stream accepts a valid frame fragmented into one-byte reads', async () => {
+  const frame = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x41, 0x42, 0x43, 0x44])
+  const header = new TextEncoder().encode('--frame\r\nContent-Type: image/png\r\nContent-Length: 12\r\n\r\n')
+  const trailer = Uint8Array.of(13, 10)
+  const payload = new Uint8Array(header.byteLength + frame.byteLength + trailer.byteLength)
+  payload.set(header)
+  payload.set(frame, header.byteLength)
+  payload.set(trailer, header.byteLength + frame.byteLength)
+  let offset = 0
+  const reader = {
+    async read() {
+      if (offset >= payload.byteLength) return { done: true }
+      const value = payload.subarray(offset, offset + 1)
+      offset += 1
+      return { done: false, value }
+    },
+    async cancel() {},
+    releaseLock() {},
+  }
+
+  const snapshot = await new ArtemisHttpClient({
+    fetchImpl: async () => multipartResponse(reader),
+  }).getSnapshot()
+  assert.deepEqual([...snapshot.data], [...frame])
+})
