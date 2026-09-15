@@ -103,3 +103,73 @@ test('evidence JSON reader preserves response-too-large when cancel throws synch
   assert.equal(cancelled, true)
   assert.equal(released, true)
 })
+
+
+function responseWithBody({ ok = true, status = 200, contentType = 'application/json', contentLength = null, cancel }) {
+  return {
+    ok,
+    status,
+    headers: {
+      get(name) {
+        const normalized = name.toLowerCase()
+        if (normalized === 'content-type') return contentType
+        if (normalized === 'content-length') return contentLength
+        return null
+      },
+    },
+    body: { cancel },
+  }
+}
+
+function evidenceClientWithResponse(response, { maxJsonBytes = 1_048_576 } = {}) {
+  return new ArtemisHttpClient({
+    baseUrl: 'http://127.0.0.1:8000',
+    maxJsonBytes,
+    fetchImpl: async () => response,
+  })
+}
+
+test('evidence HTTP errors cancel response bodies without masking the protocol error', async () => {
+  let cancelled = false
+  const response = responseWithBody({
+    ok: false,
+    status: 503,
+    cancel() {
+      cancelled = true
+      throw new Error('cancel failed')
+    },
+  })
+
+  await assert.rejects(
+    getTaskStatus(evidenceClientWithResponse(response)),
+    (error) => error instanceof ArtemisProtocolError && error.code === 'http-error',
+  )
+  assert.equal(cancelled, true)
+})
+
+test('evidence metadata rejection cancels the response body before reader acquisition', async () => {
+  let wrongTypeCancelled = false
+  const wrongType = responseWithBody({
+    contentType: 'text/plain',
+    cancel() { wrongTypeCancelled = true },
+  })
+  await assert.rejects(
+    getTaskStatus(evidenceClientWithResponse(wrongType)),
+    (error) => error instanceof ArtemisProtocolError && error.code === 'unexpected-content-type',
+  )
+  assert.equal(wrongTypeCancelled, true)
+
+  let oversizedCancelled = false
+  const oversized = responseWithBody({
+    contentLength: '5',
+    cancel() {
+      oversizedCancelled = true
+      return Promise.reject(new Error('cancel failed'))
+    },
+  })
+  await assert.rejects(
+    getTaskStatus(evidenceClientWithResponse(oversized, { maxJsonBytes: 4 })),
+    (error) => error instanceof ArtemisProtocolError && error.code === 'response-too-large',
+  )
+  assert.equal(oversizedCancelled, true)
+})
