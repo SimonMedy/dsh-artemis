@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   derivePanelState,
+  fetchOverview,
   overviewEndpoint,
   parseOverview,
   selectActiveDevice,
@@ -89,4 +90,23 @@ test('overview endpoint is same-origin for Web and unavailable for non-Web carri
     'http://127.0.0.1:3080/dsh-artemis/v1/overview',
   )
   assert.equal(overviewEndpoint({ protocol: 'file:', origin: 'null' }), null)
+})
+
+
+test('overview HTTP rejection cancels the unread browser response body', async () => {
+  let cancelled = false
+  await assert.rejects(fetchOverview({
+    locationLike: { protocol: 'http:', origin: 'http://127.0.0.1:3080' },
+    fetchImpl: async () => ({
+      ok: false,
+      status: 502,
+      body: {
+        cancel() {
+          cancelled = true
+          throw new Error('cancel failed')
+        },
+      },
+    }),
+  }), /HTTP 502/)
+  assert.equal(cancelled, true)
 })

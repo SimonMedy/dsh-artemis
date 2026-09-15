@@ -69,3 +69,22 @@ test('trace evidence fetch is explicit same-origin no-store and returns only par
   assert.equal(parsed.step.traceTree[0].children[0].name, 'device_observation')
   assert.doesNotMatch(JSON.stringify(parsed), /must-not-survive-parser/)
 })
+
+
+test('evidence HTTP rejection cancels the unread browser response body', async () => {
+  let cancelled = false
+  await assert.rejects(fetchEvidence({
+    locationLike,
+    fetchImpl: async () => ({
+      ok: false,
+      status: 503,
+      body: {
+        cancel() {
+          cancelled = true
+          return Promise.reject(new Error('cancel failed'))
+        },
+      },
+    }),
+  }), /HTTP 503/)
+  assert.equal(cancelled, true)
+})

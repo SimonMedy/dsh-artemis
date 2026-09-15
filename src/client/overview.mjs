@@ -1,4 +1,5 @@
 import { readBoundedJsonResponse } from './bounded-json.mjs'
+import { cancelBodyQuietly } from './response-body-cleanup.mjs'
 import { PANEL_METADATA_LIMITS } from '../shared/panel-metadata-limits.mjs'
 import { DSH_ARTEMIS_PROTOCOL_VERSION, OVERVIEW_ROUTE } from '../shared/protocol.mjs'
 
@@ -99,6 +100,9 @@ export async function fetchOverview({ fetchImpl = globalThis.fetch, locationLike
     headers: { accept: 'application/json' },
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   })
-  if (!response.ok) throw new Error(`dsh-artemis overview returned HTTP ${response.status}`)
+  if (!response.ok) {
+    await cancelBodyQuietly(response.body)
+    throw new Error(`dsh-artemis overview returned HTTP ${response.status}`)
+  }
   return parseOverview(await readBoundedJsonResponse(response, { label: 'dsh-artemis overview' }))
 }
