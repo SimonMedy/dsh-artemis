@@ -1,5 +1,6 @@
 import { parseDecimalContentLength } from '../shared/content-length.mjs'
 import { isJsonContentType } from '../shared/json-content-type.mjs'
+import { BoundedByteBuffer } from './bounded-byte-buffer.mjs'
 const DEFAULT_BASE_URL = 'http://127.0.0.1:8000'
 const DEFAULT_TIMEOUT_MS = 2_000
 const DEFAULT_SNAPSHOT_TIMEOUT_MS = 4_000
@@ -126,17 +127,6 @@ async function readJsonWithinLimit(response, endpoint, maxBytes) {
   }
 }
 
-function appendBytes(left, right, maxBytes) {
-  const size = left.byteLength + right.byteLength
-  if (size > maxBytes) {
-    throw new ArtemisProtocolError('ARTEMIS live frame exceeded the configured size limit', { code: 'frame-too-large' })
-  }
-  const combined = new Uint8Array(size)
-  combined.set(left)
-  combined.set(right, left.byteLength)
-  return combined
-}
-
 function indexOfBytes(haystack, needle, from = 0) {
   outer: for (let i = from; i <= haystack.byteLength - needle.byteLength; i += 1) {
     for (let j = 0; j < needle.byteLength; j += 1) {
@@ -194,7 +184,8 @@ async function* readPngFrames(response, maxFrameBytes) {
   const headerTerminator = Uint8Array.from([13, 10, 13, 10])
   const maxBuffered = maxFrameBytes + MAX_MULTIPART_HEADER_BYTES + boundaryBytes.byteLength + headerTerminator.byteLength + 2
   const reader = response.body.getReader()
-  let buffer = new Uint8Array(0)
+  const buffered = new BoundedByteBuffer(maxBuffered)
+  let buffer = buffered.view()
   let bodyStart = -1
   let contentLength = null
 
@@ -245,7 +236,8 @@ async function* readPngFrames(response, maxFrameBytes) {
           if (!hasPngSignature(frame)) {
             throw new ArtemisProtocolError('ARTEMIS live frame did not contain a valid PNG signature', { code: 'invalid-image' })
           }
-          buffer = buffer.slice(frameEnd + 2)
+          buffered.consume(frameEnd + 2)
+          buffer = buffered.view()
           bodyStart = -1
           contentLength = null
           produced = true
@@ -261,7 +253,11 @@ async function* readPngFrames(response, maxFrameBytes) {
       if (!(value instanceof Uint8Array)) {
         throw new ArtemisProtocolError('ARTEMIS live stream returned an invalid response body', { code: 'invalid-multipart' })
       }
-      buffer = appendBytes(buffer, value, maxBuffered)
+      if (buffer.byteLength + value.byteLength > maxBuffered) {
+        throw new ArtemisProtocolError('ARTEMIS live frame exceeded the configured size limit', { code: 'frame-too-large' })
+      }
+      buffered.append(value)
+      buffer = buffered.view()
     }
   } finally {
     try { await reader.cancel() } catch {}
