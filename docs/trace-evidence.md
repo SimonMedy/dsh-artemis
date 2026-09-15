@@ -8,6 +8,7 @@ This Phase 4 lot adds an explicit, read-only drill-down for the latest ARTEMIS s
 - crosses the Harness connection trust fence before ARTEMIS access;
 - accepts no query parameters or browser-provided identifiers;
 - derives the current session from ARTEMIS `/api/status`;
+- requires every upstream `step_number` to be a non-negative safe integer before latest-step selection, so malformed histories fail closed instead of falling back to response order;
 - selects the latest recorded step server-side with a one-pass scan and retains only the normalized winning step rather than a second normalized copy of the full session history;
 - validates the server-derived `step_id` before using it upstream;
 - fetches the ARTEMIS trace tree only after the user explicitly chooses **Inspect traces**;
