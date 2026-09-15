@@ -366,12 +366,17 @@ export function registerArtemisEvidenceRoute(ctx, client) {
       path: TRACE_EVIDENCE_ROUTE,
       handler: createTraceEvidenceHandler(client, { requestRejection }),
     })
+    let disposed = false
     return () => {
-      disposeTraceEvidence?.()
-      disposeEvidence?.()
+      if (disposed) return
+      disposed = true
+      let firstError
+      try { disposeTraceEvidence?.() } catch (error) { firstError ??= error }
+      try { disposeEvidence?.() } catch (error) { firstError ??= error }
+      if (firstError) throw firstError
     }
   } catch (error) {
-    disposeEvidence?.()
+    try { disposeEvidence?.() } catch {}
     throw error
   }
 }

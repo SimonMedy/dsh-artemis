@@ -3,6 +3,7 @@ import { createProductArtemisHttpClient } from './host/artemis-product-client.mj
 import { withBrowserResponseSecurity } from './host/browser-response-security.mjs'
 import { registerArtemisHostRoutes } from './host/harness-routes.mjs'
 import { createBoundedPanelClient } from './host/panel-client-bounds.mjs'
+import { createRouteRegistrationTransaction } from './host/route-registration-transaction.mjs'
 import { inspectArtemisSetup } from './integration/artemis-setup-status.mjs'
 
 export const name = 'dsh-artemis'
@@ -20,15 +21,18 @@ export function apply(ctx) {
   const setupStatus = inspectArtemisSetup()
   ctx.effect(
     () => {
-      const routeContext = {
-        webServer: withBrowserResponseSecurity(ctx.webServer),
-        connection: ctx.connection,
-      }
-      const disposeHostRoutes = registerArtemisHostRoutes(routeContext, panelClient, { setupStatus })
-      const disposeEvidence = registerArtemisEvidenceRoute(routeContext, client)
-      return () => {
-        disposeEvidence?.()
-        disposeHostRoutes?.()
+      const transaction = createRouteRegistrationTransaction(ctx.webServer)
+      try {
+        const routeContext = {
+          webServer: withBrowserResponseSecurity(transaction.webServer),
+          connection: ctx.connection,
+        }
+        registerArtemisHostRoutes(routeContext, panelClient, { setupStatus })
+        registerArtemisEvidenceRoute(routeContext, client)
+        return transaction.commit()
+      } catch (error) {
+        transaction.rollback()
+        throw error
       }
     },
     'dsh-artemis: host routes',
