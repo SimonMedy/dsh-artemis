@@ -1,0 +1,42 @@
+name: Temporary evidence HTTP cleanup patch
+
+on:
+  push:
+    branches:
+      - gpt/phase-7-evidence-http-cleanup
+    paths:
+      - .github/workflows/temp-evidence-http-cleanup.yml
+      - scripts/temp-fix-evidence-http-cleanup.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout working branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22.20.0
+      - name: Apply and validate evidence HTTP cleanup patch
+        run: |
+          node scripts/temp-fix-evidence-http-cleanup.mjs
+          git diff --check
+          npm run check
+      - name: Commit validated source and test changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/host/artemis-evidence.mjs test/artemis-evidence-json-stream.test.mjs
+          git commit -m "fix: cancel rejected evidence response bodies"
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c http.extraHeader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$BRANCH"
