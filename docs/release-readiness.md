@@ -10,6 +10,8 @@
 - Browser-facing routes enforce Harness connection trust, loopback-only ARTEMIS transport, response security headers and bounded metadata/body/frame policies.
 - Host route registration and cleanup are transactional: partial activation rolls back registered routes, normal unload is idempotent, and cleanup failures do not mask primary registration failures.
 - CI failure diagnostics are aggregated/redacted and scan only a bounded log prefix.
+- Live multipart frame accumulation is bounded with amortized buffer growth, and bounded evidence selection does not retain a second normalized full-history array.
+- Browser JSON/evidence/overview/snapshot rejection paths explicitly cancel unread response bodies before reader acquisition without masking their primary errors.
 
 ## Remaining release gates
 
