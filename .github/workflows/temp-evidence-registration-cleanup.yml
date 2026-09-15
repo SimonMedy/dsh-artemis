@@ -1,0 +1,139 @@
+name: Temporary evidence registration cleanup patch
+
+on:
+  push:
+    branches:
+      - gpt/phase-7-atomic-plugin-registration
+    paths:
+      - .github/workflows/temp-evidence-registration-cleanup.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout working branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22.20.0
+      - name: Patch evidence cleanup semantics and tests
+        run: |
+          node <<'NODE'
+          import fs from 'node:fs'
+
+          function replaceExact(source, oldText, newText, label) {
+            const count = source.split(oldText).length - 1
+            if (count !== 1) throw new Error(`${label}: expected one match, found ${count}`)
+            return source.replace(oldText, newText)
+          }
+
+          const sourcePath = 'src/host/artemis-evidence.mjs'
+          let source = fs.readFileSync(sourcePath, 'utf8')
+          source = replaceExact(
+            source,
+            `    return () => {
+              disposeTraceEvidence?.()
+              disposeEvidence?.()
+            }
+          } catch (error) {
+            disposeEvidence?.()
+            throw error
+          }
+          }`,
+            `    let disposed = false
+            return () => {
+              if (disposed) return
+              disposed = true
+              let firstError
+              try { disposeTraceEvidence?.() } catch (error) { firstError ??= error }
+              try { disposeEvidence?.() } catch (error) { firstError ??= error }
+              if (firstError) throw firstError
+            }
+          } catch (error) {
+            try { disposeEvidence?.() } catch {}
+            throw error
+          }
+          }`,
+            'evidence registration cleanup block',
+          )
+          fs.writeFileSync(sourcePath, source)
+
+          const testPath = 'test/route-registration-transaction.test.mjs'
+          let tests = fs.readFileSync(testPath, 'utf8')
+          tests = replaceExact(
+            tests,
+            `import { createRouteRegistrationTransaction } from '../src/host/route-registration-transaction.mjs'
+          import { apply } from '../src/index.mjs'`,
+            `import { registerArtemisEvidenceRoute } from '../src/host/artemis-evidence.mjs'
+          import { createRouteRegistrationTransaction } from '../src/host/route-registration-transaction.mjs'
+          import { apply } from '../src/index.mjs'`,
+            'evidence test import',
+          )
+          tests += `
+
+          test('evidence registration preserves the trace registration error when rollback cleanup fails', () => {
+            const primary = new Error('trace registration failed')
+            let count = 0
+            let cleanupAttempts = 0
+            const ctx = {
+              connection: { requestRejection() { return undefined } },
+              webServer: {
+                register() {
+                  count += 1
+                  if (count === 2) throw primary
+                  return () => {
+                    cleanupAttempts += 1
+                    throw new Error('evidence cleanup failed')
+                  }
+                },
+              },
+            }
+
+            assert.throws(() => registerArtemisEvidenceRoute(ctx, {}), (error) => error === primary)
+            assert.equal(cleanupAttempts, 1)
+          })
+
+          test('evidence disposer attempts both routes once when trace cleanup fails', () => {
+            const cleanupFailure = new Error('trace cleanup failed')
+            const disposed = []
+            const ctx = {
+              connection: { requestRejection() { return undefined } },
+              webServer: {
+                register(route) {
+                  return () => {
+                    disposed.push(route.path)
+                    if (route.path === TRACE_EVIDENCE_ROUTE) throw cleanupFailure
+                  }
+                },
+              },
+            }
+
+            const dispose = registerArtemisEvidenceRoute(ctx, {})
+            assert.throws(() => dispose(), (error) => error === cleanupFailure)
+            assert.deepEqual(disposed, [TRACE_EVIDENCE_ROUTE, EVIDENCE_ROUTE])
+            dispose()
+            assert.deepEqual(disposed, [TRACE_EVIDENCE_ROUTE, EVIDENCE_ROUTE])
+          })
+          `.replace(/^          /gm, '')
+          fs.writeFileSync(testPath, tests)
+          NODE
+          git diff --check
+          npm run check
+      - name: Commit validated patch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/host/artemis-evidence.mjs test/route-registration-transaction.test.mjs
+          git commit -m "fix: preserve evidence registration errors during rollback"
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c http.extraHeader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$BRANCH"
