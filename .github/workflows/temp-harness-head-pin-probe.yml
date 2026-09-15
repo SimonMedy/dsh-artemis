@@ -1,0 +1,144 @@
+name: Temporary Harness HEAD pin probe
+
+on:
+  push:
+    branches: [gpt/phase-7-upstream-head-probe]
+    paths:
+      - .github/workflows/temp-harness-head-pin-probe.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  OLD_HARNESS_SHA: c291e7961a515f6d7af9304e7fd1d257929aef26
+  HARNESS_SHA: 0d1f50007f9bca3f52b06e1c3074fa14d5fb0720
+  OLD_ARTEMIS_SHA: 086078819209c7139d6f833cfdc6d5cc80d9f19a
+  ARTEMIS_SHA: 371aa6df56880643da57b30da936e9812fb0ec66
+  PNPM_VERSION: 11.7.0
+
+jobs:
+  harness-head-pin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout dsh-artemis probe branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          path: dsh-artemis
+      - name: Checkout Harness candidate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: deepseek-ai/deepseek-harness
+          ref: ${{ env.HARNESS_SHA }}
+          persist-credentials: false
+          path: deepseek-harness
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22.20.0
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare "pnpm@${PNPM_VERSION}" --activate
+      - name: Install and build Harness candidate
+        working-directory: deepseek-harness
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+          pnpm dsh --version
+      - name: Apply candidate upstream pins in runner workspace
+        working-directory: dsh-artemis
+        run: |
+          for file in $(git grep -l "$OLD_HARNESS_SHA"); do
+            sed -i "s/$OLD_HARNESS_SHA/$HARNESS_SHA/g" "$file"
+          done
+          for file in $(git grep -l "$OLD_ARTEMIS_SHA"); do
+            sed -i "s/$OLD_ARTEMIS_SHA/$ARTEMIS_SHA/g" "$file"
+          done
+          git diff --check
+          test -z "$(git grep -l "$OLD_HARNESS_SHA" || true)"
+          test -z "$(git grep -l "$OLD_ARTEMIS_SHA" || true)"
+      - name: Rebuild bundle and run full repository checks
+        working-directory: dsh-artemis
+        env:
+          DSH_HARNESS_ROOT: ${{ github.workspace }}/deepseek-harness
+        run: |
+          npm run bundle:client
+          npm run check
+      - name: Pack dsh-artemis candidate
+        id: pack
+        working-directory: dsh-artemis
+        run: |
+          mkdir -p "$RUNNER_TEMP/dsh-artemis-pack"
+          npm pack --pack-destination "$RUNNER_TEMP/dsh-artemis-pack" > "$RUNNER_TEMP/dsh-artemis-pack-name.txt"
+          TARBALL="$RUNNER_TEMP/dsh-artemis-pack/$(tail -n 1 "$RUNNER_TEMP/dsh-artemis-pack-name.txt")"
+          test -f "$TARBALL"
+          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+      - name: Install, compose, remove and reinstall with Harness candidate
+        working-directory: deepseek-harness
+        env:
+          DSH_HOME: ${{ runner.temp }}/dsh-home
+          ARTEMIS_TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: |
+          pnpm dsh plugin --profile web add "$ARTEMIS_TARBALL"
+          pnpm dsh web --dump-config > "$RUNNER_TEMP/dsh-web-with-artemis.yml"
+          grep -F 'id: dsh-artemis' "$RUNNER_TEMP/dsh-web-with-artemis.yml"
+          pnpm dsh plugin --profile web remove dsh-artemis
+          pnpm dsh web --dump-config > "$RUNNER_TEMP/dsh-web-without-artemis.yml"
+          if grep -Fq 'dsh-artemis' "$RUNNER_TEMP/dsh-web-without-artemis.yml"; then exit 1; fi
+          pnpm dsh plugin --profile web add "$ARTEMIS_TARBALL"
+          pnpm dsh web --dump-config > "$RUNNER_TEMP/dsh-web-reinstalled.yml"
+          grep -F 'id: dsh-artemis' "$RUNNER_TEMP/dsh-web-reinstalled.yml"
+      - name: Install Chromium
+        working-directory: deepseek-harness/apps/web
+        run: pnpm exec playwright install chromium
+      - name: Start deterministic local services
+        run: |
+          node dsh-artemis/test/fixtures/fake-artemis.mjs > "$RUNNER_TEMP/fake-artemis.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/fake-artemis.pid"
+          node dsh-artemis/test/fixtures/fake-deepseek.mjs > "$RUNNER_TEMP/fake-deepseek.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/fake-deepseek.pid"
+          for _ in $(seq 1 40); do
+            A=0; D=0
+            curl --fail --silent http://127.0.0.1:8000/api/status >/dev/null && A=1 || true
+            curl --fail --silent http://127.0.0.1:8001/health >/dev/null && D=1 || true
+            if [ "$A" -eq 1 ] && [ "$D" -eq 1 ]; then exit 0; fi
+            sleep 0.25
+          done
+          exit 1
+      - name: Start authenticated Harness Web
+        working-directory: deepseek-harness
+        env:
+          DSH_HOME: ${{ runner.temp }}/dsh-home
+        run: |
+          pnpm dsh web --no-open --port 3080 > "$RUNNER_TEMP/dsh-web.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/dsh-web.pid"
+          for _ in $(seq 1 120); do
+            if grep -qE '^dsh web: http://127\.0\.0\.1:3080/\?token=' "$RUNNER_TEMP/dsh-web.log"; then break; fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/dsh-web.pid")" 2>/dev/null; then cat "$RUNNER_TEMP/dsh-web.log"; exit 1; fi
+            sleep 0.5
+          done
+          AUTH_URL=$(sed -nE 's#^dsh web: (http://127\.0\.0\.1:3080/\?token=[^[:space:]]+).*#\1#p' "$RUNNER_TEMP/dsh-web.log" | tail -n 1)
+          test -n "$AUTH_URL"
+          printf '%s' "$AUTH_URL" > "$RUNNER_TEMP/dsh-auth-url"
+          chmod 600 "$RUNNER_TEMP/dsh-auth-url"
+      - name: Run Android panel browser E2E
+        working-directory: deepseek-harness/apps/web
+        env:
+          DSH_AUTH_URL_FILE: ${{ runner.temp }}/dsh-auth-url
+          DSH_ARTEMIS_E2E_ARTIFACT_DIR: ${{ runner.temp }}/dsh-artemis-e2e
+          DSH_E2E_SESSION_CWD: ${{ github.workspace }}/dsh-artemis
+        run: |
+          cp "$GITHUB_WORKSPACE/dsh-artemis/test/e2e/native-panel.e2e.mjs" ./dsh-artemis-native-panel.e2e.mjs
+          node "$GITHUB_WORKSPACE/dsh-artemis/scripts/run-e2e-redacted.mjs" ./dsh-artemis-native-panel.e2e.mjs
+      - name: Stop local services
+        if: always()
+        run: |
+          for file in "$RUNNER_TEMP/dsh-web.pid" "$RUNNER_TEMP/fake-artemis.pid" "$RUNNER_TEMP/fake-deepseek.pid"; do
+            if [ -f "$file" ]; then kill "$(cat "$file")" 2>/dev/null || true; fi
+          done
