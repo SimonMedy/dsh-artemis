@@ -1,4 +1,4 @@
-name: Temporary roadmap refresh
+name: Temporary roadmap typo fix
 
 on:
   push:
@@ -20,59 +20,25 @@ jobs:
         with:
           persist-credentials: false
           path: repo
-      - name: Set up Node.js
-        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
-        with:
-          node-version: 22.20.0
-      - name: Refresh roadmap
+      - name: Fix roadmap typos and validate
         working-directory: repo
         run: |
           node <<'NODE'
           const fs = require('node:fs')
-          function replaceExact(source, oldText, newText, label) {
-            const count = source.split(oldText).length - 1
-            if (count !== 1) throw new Error(`${label}: expected one match, found ${count}`)
-            return source.replace(oldText, newText)
+          const path = 'docs/roadmap.md'
+          let source = fs.readFileSync(path, 'utf8')
+          for (const [from, to] of [
+            ['public instal, remove and reinstall', 'public install, remove and reinstall'],
+            ['pinned DeepSeeek Harness', 'pinned DeepSeek Harness'],
+          ]) {
+            const count = source.split(from).length - 1
+            if (count !== 1) throw new Error(`expected one ${from} occurrence, found ${count}`)
+            source = source.replace(from, to)
           }
-          let roadmap = fs.readFileSync('docs/roadmap.md', 'utf8')
-          roadmap = replaceExact(roadmap, 'Last updated: 2026-09-14', 'Last updated: 2026-09-15', 'date')
-          roadmap = replaceExact(
-            roadmap,
-            '| 5 — installation & agent experience | **PARTIAL** | MCP config + rules skill + truthful bounded setup/status UX PR #24 merged; automatic profile mutation and vision affordances remain gated |',
-            '| 5 — installation & agent experience | **PARTIAL** | MCP config + rules skill + truthful bounded setup/status UX are merged and reversible plugin lifecycle is proven; automatic profile mutation and vision affordances remain gated |',
-            'phase 5 status',
-          )
-          roadmap = replaceExact(
-            roadmap,
-            '| 7 — compatibility & polish | **ONGOING** | Security, privacy, response-boundary and cleanup hardening merged through PR #66; real pinned ARTEMIS daemon compatibility is proven, while real device/emulator smoke and remaining release polish stay open |',
-            '| 7 — compatibility & polish | **ONGOING** | Security, privacy, response-boundary, lifecycle and cleanup hardening merged through PR #69; real pinned Harness/ARTEMIS compatibility is proven, while real device/emulator smoke and remaining release polish stay open |',
-            'phase 7 status',
-          )
-          roadmap = replaceExact(
-            roadmap,
-            '- Real npm packaging, Cordis composition and Chromium journeys are validated against the pinned DeepSeek Harness revision.',
-            '- Real npm packaging, Cordis composition and Chromium journeys are validated against the pinned DeepSeek Harness revision.\n- `dsh-artemis` must remain a reversible Harness/Cordis plugin: public instal, remove and reinstall must not patch Harness source or leave stale profile/Cordis state.',
-            'plugin lifecycle foundation',
-          )
-          roadmap = replaceExact(roadmap, '**Status: ONGOING — hardening merged through PR #66**', '**Status: ONGOING — hardening merged through PR #69**', 1, 'phase 7 heading')
-          roadmap = replaceExact(
-            roadmap,
-            '- [x] Runtime-affecting PR heads continue to pass pinned DeepSeek Harness package/Cordis/Web/Chromium gates; ARTEMIS-facing changes also pass the real daemon compatibility gate.',
-            '- [x] PR #67: browser bounded-JSON cleanup preserves primary size-limit errors when reader cancellation throws synchronously.\n- [x] PR #68: public Harness plugin lifecycle is proven end-to-end: install → compose → remove → compose without Artemis → reinstall → authenticated Web + Chromium E2E.\n- [x] PR #69: browser snapshot cleanup contains synchronous cancellation and lock-release failures without masking primary body/protocol errors.\n- [x] Runtime-affecting PR heads continue to pass pinned DeepSeeek Harness package/Cordis/Web/Chromium gates; ARTEMIS-facing changes also pass the real daemon compatibility gate.',
-            'recent deliveries',
-          )
-          roadmap = replaceExact(
-            roadmap,
-            'Phase 5 truthful bounded setup/status merged; profile mutation and model image handoff remain upstream-gated',
-            'Phase 5 truthful bounded setup/status + reversible plugin lifecycle proven; profile mutation and model image handoff remain upstream-gated',
-            'critical path',
-          )
-          fs.writeFileSync('docs/roadmap.md', roadmap)
+          fs.writeFileSync(path, source)
           NODE
-      - name: Validate repository after roadmap refresh
-        working-directory: repo
-        run: npm run check
-      - name: Commit validated roadmap
+          npm run check
+      - name: Commit corrected roadmap
         working-directory: repo
         env:
           GH_TOKEN: ${{ github.token }}
@@ -94,12 +60,15 @@ jobs:
           const get = await fetch(`${url}?ref=${encodeURIComponent(process.env.BRANCH)}`, { headers })
           if (!get.ok) throw new Error(`GET roadmap: ${get.status} ${await get.text()}`)
           const current = await get.json()
-          const body = {
-            message: 'docs: refresh roadmap through PR 69',
-            content: Buffer.from(fs.readFileSync(path, 'utf8')).toString('base64'),
-            branch: process.env.BRANCH,
-            sha: current.sha,
-          }
-          const put = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(body) })
+          const put = await fetch(url, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({
+              message: 'docs: correct roadmap wording',
+              content: Buffer.from(fs.readFileSync(path, 'utf8')).toString('base64'),
+              branch: process.env.BRANCH,
+              sha: current.sha,
+            }),
+          })
           if (!put.ok) throw new Error(`PUT roadmap: ${put.status} ${await put.text()}`)
           NODE
