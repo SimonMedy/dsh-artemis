@@ -18,7 +18,7 @@ Last updated: 2026-09-15
 | 4 — tasks, traces & visual QA | **PARTIAL** | Bounded task evidence PR #19, latest-trace drill-down PR #21 and ephemeral visual QA checkpoint PR #22 merged; replay and model-image handoff remain gated |
 | 5 — installation & agent experience | **PARTIAL** | MCP config + rules skill + truthful bounded setup/status UX are merged and reversible plugin lifecycle is proven; automatic profile mutation and vision affordances remain gated |
 | 6 — autonomous mobile computer-use | **PLANNED** | Build bounded code→build→ARTEMIS→observe→verify→fix workflows |
-| 7 — compatibility & polish | **ONGOING** | Security, privacy, response-boundary, lifecycle and cleanup hardening merged through PR #69; real pinned Harness/ARTEMIS compatibility is proven, while real device/emulator smoke and remaining release polish stay open |
+| 7 — compatibility & polish | **ONGOING** | Security, privacy, response-boundary, lifecycle, CI/resource cleanup and release-readiness hardening merged through PR #74; real pinned Harness/ARTEMIS compatibility is proven, while real device/emulator smoke and remaining release polish stay open |
 
 ## Non-negotiable foundations
 
@@ -97,7 +97,7 @@ Remaining gates:
 
 ## Phase 7 — compatibility and polish
 
-**Status: ONGOING — hardening merged through PR #69**
+**Status: ONGOING — hardening merged through PR #74**
 
 Delivered:
 - [x] PR #26: browser response baseline (`no-store`, `nosniff`) applies before route logic/trust rejection.
@@ -118,6 +118,11 @@ Delivered:
 - [x] PR #67: browser bounded-JSON cleanup preserves primary size-limit errors when reader cancellation throws synchronously.
 - [x] PR #68: public Harness plugin lifecycle is proven end-to-end: install → compose → remove → compose without Artemis → reinstall → authenticated Web + Chromium E2E.
 - [x] PR #69: browser snapshot cleanup contains synchronous cancellation and lock-release failures without masking primary body/protocol errors.
+- [x] PR #70: CI, Harness and ARTEMIS workflows cancel superseded runs per workflow + PR/ref without weakening final-SHA gates; runner-safety policy is documented and invariant-tested.
+- [x] PR #71: Harness/ARTEMIS failure diagnostics scan at most 8 MiB by default and report explicit truncation without emitting raw logs.
+- [x] PR #72: Host route activation/unload is transactional and idempotent; partial registration rollback and evidence/trace cleanup preserve primary failures while attempting all disposers.
+- [x] PR #73: package release state is machine-locked to private/0.0.0 until an explicit release decision, with a dedicated release-readiness checklist.
+- [x] PR #74: non-2xx live-stream HTTP responses still traverse cleanup, aborting internal request resources without changing the primary protocol error.
 - [x] Runtime-affecting PR heads continue to pass pinned DeepSeek Harness package/Cordis/Web/Chromium gates; ARTEMIS-facing changes also pass the real daemon compatibility gate.
 
 Remaining Phase 7 gates:
