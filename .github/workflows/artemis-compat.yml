@@ -14,6 +14,11 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   ARTEMIS_SHA: 086078819209c7139d6f833cfdc6d5cc80d9f19a
   UV_VERSION: 0.7.20

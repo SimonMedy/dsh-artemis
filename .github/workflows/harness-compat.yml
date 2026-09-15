@@ -15,6 +15,11 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   HARNESS_SHA: c291e7961a515f6d7af9304e7fd1d257929aef26
   PNPM_VERSION: 11.7.0

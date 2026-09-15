@@ -64,3 +64,7 @@ This device smoke becomes important for releases and changes touching real strea
 ## CI policy
 
 GitHub Actions is the primary reproducible environment. Contributors should not be required to manually run installation/build/E2E steps that can be encoded safely in CI.
+
+The checked-in workflows use one concurrency group per workflow and pull request/ref with `cancel-in-progress: true`. A newer push may therefore cancel an older run for the same PR or branch, but cancellation is only a resource optimization: every required gate still has to succeed on the final SHA before merge.
+
+Runner selection is explicit in the workflow files. The repository currently targets `ubuntu-latest`; do not retarget public-PR jobs to a personal/self-hosted runner unless a trusted runner label, event isolation and least-privilege policy are configured deliberately.
