@@ -1,4 +1,5 @@
 import { readBoundedJsonResponse } from './bounded-json.mjs'
+import { cancelBodyQuietly } from './response-body-cleanup.mjs'
 import { DSH_ARTEMIS_PROTOCOL_VERSION, EVIDENCE_ROUTE, TRACE_EVIDENCE_ROUTE } from '../shared/protocol.mjs'
 
 const REQUEST_TIMEOUT_MS = 4_000
@@ -115,7 +116,10 @@ async function fetchJson(endpoint, errorLabel, parse, { fetchImpl = globalThis.f
     headers: { accept: 'application/json' },
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   })
-  if (!response.ok) throw new Error(`${errorLabel} returned HTTP ${response.status}`)
+  if (!response.ok) {
+    await cancelBodyQuietly(response.body)
+    throw new Error(`${errorLabel} returned HTTP ${response.status}`)
+  }
   return parse(await readBoundedJsonResponse(response, { label: errorLabel }))
 }
 export async function fetchEvidence({ fetchImpl = globalThis.fetch, locationLike = globalThis.location } = {}) {

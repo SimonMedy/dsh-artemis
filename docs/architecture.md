@@ -27,7 +27,7 @@ Owns local connectivity, ARTEMIS discovery/status, device metadata and user-init
 
 ### `src/client`
 
-Owns the native Harness UI surface, right-sidebar registration, rendering, reconnect/refresh UX and screen viewer. It is the compatibility boundary for Harness client APIs.
+Owns the native Harness UI surface, right-sidebar registration, rendering, reconnect/refresh UX and screen viewer. It is the compatibility boundary for Harness client APIs. Browser response bodies are bounded and explicitly cancelled on pre-reader HTTP/metadata rejection so failed requests do not retain unread transport resources.
 
 ## Screen transport
 

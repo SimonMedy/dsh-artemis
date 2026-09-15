@@ -1,5 +1,6 @@
 import { parseDecimalContentLength } from '../shared/content-length.mjs'
 import { isJsonContentType } from '../shared/json-content-type.mjs'
+import { cancelBodyQuietly } from './response-body-cleanup.mjs'
 
 export const DEFAULT_BROWSER_JSON_LIMIT_BYTES = 128 * 1024
 
@@ -48,11 +49,25 @@ export async function readBoundedJsonResponse(response, {
   label = 'JSON response',
 } = {}) {
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new TypeError('maxBytes must be a positive safe integer')
-  assertJsonContentType(response, label)
-  assertDeclaredLength(response, maxBytes, label)
+  try {
+    assertJsonContentType(response, label)
+    assertDeclaredLength(response, maxBytes, label)
+  } catch (error) {
+    await cancelBodyQuietly(response?.body)
+    throw error
+  }
 
-  const reader = response?.body?.getReader?.()
-  if (!reader) throw new Error(`${label} returned a non-streamable response body`)
+  let reader
+  try {
+    reader = response?.body?.getReader?.()
+  } catch (error) {
+    await cancelBodyQuietly(response?.body)
+    throw error
+  }
+  if (!reader) {
+    await cancelBodyQuietly(response?.body)
+    throw new Error(`${label} returned a non-streamable response body`)
+  }
 
   const chunks = []
   let total = 0

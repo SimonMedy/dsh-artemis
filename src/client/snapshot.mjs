@@ -1,4 +1,5 @@
 import { SNAPSHOT_ROUTE } from '../shared/protocol.mjs'
+import { cancelBodyQuietly } from './response-body-cleanup.mjs'
 
 const SNAPSHOT_TIMEOUT_MS = 6_000
 const MAX_SNAPSHOT_BYTES = 8_388_608
@@ -21,14 +22,25 @@ function hasPngSignature(bytes) {
 async function readResponseBytes(response, maxBytes) {
   const declaredText = response.headers.get('content-length')
   if (declaredText !== null) {
-    if (!/^\d+$/.test(declaredText)) throw new Error('Android snapshot returned an invalid Content-Length')
-    const declared = Number(declaredText)
-    if (!Number.isSafeInteger(declared) || declared <= 0) throw new Error('Android snapshot returned an invalid Content-Length')
-    if (declared > maxBytes) throw new Error('Android snapshot exceeded the browser size limit')
+    try {
+      if (!/^\d+$/.test(declaredText)) throw new Error('Android snapshot returned an invalid Content-Length')
+      const declared = Number(declaredText)
+      if (!Number.isSafeInteger(declared) || declared <= 0) throw new Error('Android snapshot returned an invalid Content-Length')
+      if (declared > maxBytes) throw new Error('Android snapshot exceeded the browser size limit')
+    } catch (error) {
+      await cancelBodyQuietly(response.body)
+      throw error
+    }
   }
   if (!response.body) throw new Error('Android snapshot returned an empty body')
 
-  const reader = response.body.getReader()
+  let reader
+  try {
+    reader = response.body.getReader()
+  } catch (error) {
+    await cancelBodyQuietly(response.body)
+    throw error
+  }
   const chunks = []
   let size = 0
   try {
@@ -76,8 +88,12 @@ export async function fetchSnapshot({
     headers: { accept: 'image/png' },
     signal: AbortSignal.timeout(timeoutMs),
   })
-  if (!response.ok) throw new Error(`Android snapshot returned HTTP ${response.status}`)
+  if (!response.ok) {
+    await cancelBodyQuietly(response.body)
+    throw new Error(`Android snapshot returned HTTP ${response.status}`)
+  }
   if ((response.headers.get('content-type') ?? '').toLowerCase() !== 'image/png') {
+    await cancelBodyQuietly(response.body)
     throw new Error('Android snapshot returned an unexpected content type')
   }
   const data = await readResponseBytes(response, maxBytes)

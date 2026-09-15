@@ -92,3 +92,39 @@ test('snapshot preserves the primary body error when releaseLock cleanup fails',
   )
   assert.equal(released, true)
 })
+
+
+function rejectedSnapshotResponse({ ok = true, status = 200, contentType = 'image/png', contentLength = null, cancel }) {
+  return {
+    ok,
+    status,
+    headers: new Headers({
+      'content-type': contentType,
+      ...(contentLength === null ? {} : { 'content-length': contentLength }),
+    }),
+    body: { cancel },
+  }
+}
+
+test('snapshot pre-reader rejection cancels unread bodies and preserves primary errors', async () => {
+  const cases = [
+    { response: rejectedSnapshotResponse({ ok: false, status: 503, cancel() { throw new Error('cancel failed') } }), expected: /HTTP 503/ },
+    { response: rejectedSnapshotResponse({ contentType: 'text/plain', cancel() { return Promise.reject(new Error('cancel failed')) } }), expected: /unexpected content type/ },
+    { response: rejectedSnapshotResponse({ contentLength: '999', cancel() { throw new Error('cancel failed') } }), expected: /browser size limit/, maxBytes: 16 },
+    { response: rejectedSnapshotResponse({ contentLength: '2x', cancel() { return Promise.reject(new Error('cancel failed')) } }), expected: /invalid Content-Length/ },
+  ]
+  for (const { response, expected, maxBytes } of cases) {
+    let cancelled = false
+    const originalCancel = response.body.cancel
+    response.body.cancel = () => {
+      cancelled = true
+      return originalCancel()
+    }
+    await assert.rejects(fetchSnapshot({
+      locationLike,
+      ...(maxBytes ? { maxBytes } : {}),
+      fetchImpl: async () => response,
+    }), expected)
+    assert.equal(cancelled, true)
+  }
+})

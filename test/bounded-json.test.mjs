@@ -68,3 +68,40 @@ test('rejects malformed length, invalid UTF-8 and invalid JSON', async (t) => {
     await assert.rejects(readBoundedJsonResponse(jsonResponse('{')), /invalid JSON/)
   })
 })
+
+
+test('browser JSON pre-reader metadata rejection cancels the body without masking the primary error', async () => {
+  for (const [headers, expected] of [
+    [{ 'content-type': 'text/plain' }, /content type/],
+    [{ 'content-type': 'application/json', 'content-length': '1000' }, /size limit/],
+    [{ 'content-type': 'application/json', 'content-length': '2x' }, /content length/],
+  ]) {
+    let cancelled = false
+    const response = {
+      headers: new Headers(headers),
+      body: {
+        cancel() {
+          cancelled = true
+          throw new Error('cancel failed')
+        },
+      },
+    }
+    await assert.rejects(readBoundedJsonResponse(response, { maxBytes: 16 }), expected)
+    assert.equal(cancelled, true)
+  }
+})
+
+test('browser JSON non-streamable bodies are cancelled when possible', async () => {
+  let cancelled = false
+  const response = {
+    headers: new Headers({ 'content-type': 'application/json' }),
+    body: {
+      cancel() {
+        cancelled = true
+        return Promise.reject(new Error('cancel failed'))
+      },
+    },
+  }
+  await assert.rejects(readBoundedJsonResponse(response), /non-streamable response body/)
+  assert.equal(cancelled, true)
+})
