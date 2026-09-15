@@ -7,6 +7,7 @@
 - Real npm package contents are checked with `npm pack --dry-run` so repository-only files, fixtures, scripts and workflows cannot silently enter distribution.
 - DeepSeek Harness compatibility installs the package through the public plugin path, composes Cordis, removes the package, verifies composition without Artemis, reinstalls it, starts authenticated Harness Web and exercises the native panel with Chromium.
 - The pinned ARTEMIS runtime is installed from its upstream lockfile and exercised through the real daemon compatibility smoke without model credentials or device commands.
+- Supported Harness and ARTEMIS revisions were refreshed on 2026-09-15 only after branch-only candidate probes and then revalidated by the permanent exact-SHA CI/Harness/ARTEMIS gates; this remains daemon/browser compatibility evidence, not real Android device E2E.
 - Browser-facing routes enforce Harness connection trust, loopback-only ARTEMIS transport, response security headers and bounded metadata/body/frame policies.
 - Host route registration and cleanup are transactional: partial activation rolls back registered routes, normal unload is idempotent, cleanup failures do not mask primary registration failures, and exported Host registration helpers also roll back their own partial direct registration before returning an exhaustive reverse-order disposer.
 - CI failure diagnostics are aggregated/redacted and scan only a bounded log prefix.
