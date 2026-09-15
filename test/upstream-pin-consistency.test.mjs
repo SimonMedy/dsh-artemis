@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-const HARNESS_SHA = 'c291e7961a515f6d7af9304e7fd1d257929aef26'
-const ARTEMIS_SHA = '086078819209c7139d6f833cfdc6d5cc80d9f19a'
+const HARNESS_SHA = '0d1f50007f9bca3f52b06e1c3074fa14d5fb0720'
+const ARTEMIS_SHA = '371aa6df56880643da57b30da936e9812fb0ec66'
 
 async function text(path) {
   return readFile(new URL(`../${path}`, import.meta.url), 'utf8')
