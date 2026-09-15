@@ -57,3 +57,27 @@ test('snapshot cleanup failure does not replace a successfully received frame', 
   const client = new CleanupFailingClient({ fetchImpl: async () => { throw new Error('unused') } })
   assert.equal(await client.getSnapshot(), frame)
 })
+
+
+test('live stream HTTP errors abort the internal request signal', async () => {
+  let requestSignal
+  const client = new ArtemisHttpClient({
+    fetchImpl: async (_url, options) => {
+      requestSignal = options.signal
+      return {
+        ok: false,
+        status: 503,
+        headers: { get() { return null } },
+        body: null,
+      }
+    },
+  })
+
+  const iterator = client.streamSnapshots()[Symbol.asyncIterator]()
+  await assert.rejects(
+    iterator.next(),
+    (error) => error instanceof ArtemisProtocolError && error.code === 'http-error',
+  )
+  assert.ok(requestSignal)
+  assert.equal(requestSignal.aborted, true)
+})

@@ -350,10 +350,10 @@ export class ArtemisHttpClient {
     } finally {
       clearTimeout(connectTimer)
     }
-    if (!response.ok) {
-      throw new ArtemisProtocolError(`ARTEMIS returned HTTP ${response.status} for /api/stream/device-live`, { code: 'http-error' })
-    }
     try {
+      if (!response.ok) {
+        throw new ArtemisProtocolError(`ARTEMIS returned HTTP ${response.status} for /api/stream/device-live`, { code: 'http-error' })
+      }
       yield* readPngFrames(response, this.maxFrameBytes)
     } finally {
       controller.abort()
