@@ -224,11 +224,12 @@ function selectLatestStep(steps) {
 
 export async function buildEvidence(client) {
   const task = await getTaskStatus(client)
-  const steps = task.sessionId ? await getSessionSteps(client, task.sessionId) : []
+  const rawSteps = task.sessionId ? await getRawSessionSteps(client, task.sessionId) : []
+  const selected = selectLatestByStepNumber(rawSteps, normalizeStep)
   return Object.freeze({
     version: DSH_ARTEMIS_PROTOCOL_VERSION,
     task,
-    latestStep: selectLatestStep(steps),
+    latestStep: selected?.normalized ?? null,
   })
 }
 

@@ -126,3 +126,20 @@ test('evidence route trusts Harness first, accepts no browser identifiers and sa
     assert.doesNotMatch(await failed.text(), /private upstream detail/)
   })
 })
+
+
+test('evidence selects the latest step from a large unordered bounded history', async () => {
+  const history = Array.from({ length: 2048 }, (_, index) => ({
+    step_number: 2048 - index,
+    action_taken: { action: `action-${2048 - index}` },
+    generic_tools: Array.from({ length: 8 }, (_, traceIndex) => ({ name: `trace-${traceIndex}`, type: 'tool', status: 'done' })),
+  }))
+  const routes = new Map([
+    ['/api/status', () => ({ status: 'running', session_id: 'session-large', queue: [], active_tasks: [], background_tasks: [] })],
+    ['/api/sessions/session-large/steps', () => history],
+  ])
+  const evidence = await buildEvidence(evidenceClient(routes))
+  assert.equal(evidence.latestStep.stepNumber, 2048)
+  assert.equal(evidence.latestStep.action, 'action-2048')
+  assert.equal(evidence.latestStep.traces.length, evidenceLimits.maxTraces)
+})
