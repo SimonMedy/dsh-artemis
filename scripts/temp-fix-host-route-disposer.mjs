@@ -48,7 +48,7 @@ fs.writeFileSync(testPath, tests)
 
 const docsPath = 'docs/maintainability.md'
 let docs = fs.readFileSync(docsPath, 'utf8')
-const anchor = '- Keep Host and Client registration under Cordis effects so package unload/reload does not leave duplicate routes or panels.\n'
+const anchor = '- Timeouts and cancellation should be explicit for network/process operations.\n'
 docs = replaceExact(
   docs,
   anchor,
