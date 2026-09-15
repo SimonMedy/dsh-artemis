@@ -18,7 +18,7 @@ Last updated: 2026-09-15
 | 4 — tasks, traces & visual QA | **PARTIAL** | Bounded task evidence PR #19, latest-trace drill-down PR #21 and ephemeral visual QA checkpoint PR #22 merged; replay and model-image handoff remain gated |
 | 5 — installation & agent experience | **PARTIAL** | MCP config + rules skill + truthful bounded setup/status UX are merged and reversible plugin lifecycle is proven; automatic profile mutation and vision affordances remain gated |
 | 6 — autonomous mobile computer-use | **PLANNED** | Build bounded code→build→ARTEMIS→observe→verify→fix workflows |
-| 7 — compatibility & polish | **ONGOING** | Security, privacy, response-boundary, lifecycle, CI/resource cleanup and release-readiness hardening merged through PR #74; real pinned Harness/ARTEMIS compatibility is proven, while real device/emulator smoke and remaining release polish stay open |
+| 7 — compatibility & polish | **ONGOING** | Security, privacy, response-boundary, lifecycle, CI/resource cleanup and release-readiness hardening merged through PR #76; real pinned Harness/ARTEMIS compatibility is proven, while real device/emulator smoke, licensing decision and remaining release polish stay open |
 
 ## Non-negotiable foundations
 
@@ -97,7 +97,7 @@ Remaining gates:
 
 ## Phase 7 — compatibility and polish
 
-**Status: ONGOING — hardening merged through PR #74**
+**Status: ONGOING — hardening merged through PR #76**
 
 Delivered:
 - [x] PR #26: browser response baseline (`no-store`, `nosniff`) applies before route logic/trust rejection.
@@ -123,6 +123,8 @@ Delivered:
 - [x] PR #72: Host route activation/unload is transactional and idempotent; partial registration rollback and evidence/trace cleanup preserve primary failures while attempting all disposers.
 - [x] PR #73: package release state is machine-locked to private/0.0.0 until an explicit release decision, with a dedicated release-readiness checklist.
 - [x] PR #74: non-2xx live-stream HTTP responses still traverse cleanup, aborting internal request resources without changing the primary protocol error.
+- [x] PR #75: release-readiness documentation is indexed and the Phase 7 execution tracker is refreshed through PR #74.
+- [x] PR #76: rejected JSON responses in both core Host and evidence paths cancel pre-reader response bodies while preserving the primary protocol error.
 - [x] Runtime-affecting PR heads continue to pass pinned DeepSeek Harness package/Cordis/Web/Chromium gates; ARTEMIS-facing changes also pass the real daemon compatibility gate.
 
 Remaining Phase 7 gates:
