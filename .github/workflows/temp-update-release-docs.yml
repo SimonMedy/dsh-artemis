@@ -1,0 +1,42 @@
+name: Temporary release docs update
+
+on:
+  push:
+    branches:
+      - gpt/phase-7-docs-release-readiness
+    paths:
+      - .github/workflows/temp-update-release-docs.yml
+      - scripts/temp-update-release-docs.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout working branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22.20.0
+      - name: Apply and validate release docs update
+        run: |
+          node scripts/temp-update-release-docs.mjs
+          git diff --check
+          npm run check
+      - name: Commit validated documentation changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/README.md docs/roadmap.md
+          git commit -m "docs: update Phase 7 release readiness"
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c http.extraHeader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$BRANCH"
