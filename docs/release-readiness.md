@@ -14,6 +14,7 @@
 - Live multipart frame accumulation is bounded with amortized buffer growth, and bounded evidence selection does not retain a second normalized full-history array.
 - Browser JSON/evidence/overview/snapshot rejection paths explicitly cancel unread response bodies before reader acquisition without masking their primary errors.
 - Host ARTEMIS protocol fields are type-checked without implicit string/boolean coercion, so malformed upstream values fail closed before they become panel DTO data.
+- Evidence and trace selection require every upstream `step_number` to be a non-negative safe integer before latest-step selection, preventing malformed session histories from silently falling back to response order or triggering downstream trace requests.
 
 ## Remaining release gates
 
