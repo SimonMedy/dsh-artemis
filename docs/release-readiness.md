@@ -8,6 +8,7 @@
 - DeepSeek Harness compatibility installs the package through the public plugin path, composes Cordis, removes the package, verifies composition without Artemis, reinstalls it, starts authenticated Harness Web and exercises the native panel with Chromium.
 - The pinned ARTEMIS runtime is installed from its upstream lockfile and exercised through the real daemon compatibility smoke without model credentials or device commands.
 - DeepSeek Harness support was refreshed on 2026-09-16 to official tag `dsh-v0.1.6-alpha.1` only after exact-SHA CI, real ARTEMIS daemon, byte-for-byte bundle, package/Cordis lifecycle and Chromium Android-panel E2E all passed; this remains daemon/browser compatibility evidence, not real Android device E2E.
+- ACP/headless session-scoped ARTEMIS MCP configuration is proven on `main` through PR #121: the CLI emits the Harness `mcpServers` schema without mutating a Session/profile, Cordis remains the default format, and the permanent ARTEMIS workflow launches the real pinned `python -m mcp_server` successfully from a foreign Session cwd using the generated absolute Python/PYTHONPATH contract.
 - Browser-facing routes enforce Harness connection trust, loopback-only ARTEMIS transport, response security headers and bounded metadata/body/frame policies.
 - Host route registration and cleanup are transactional: partial activation rolls back registered routes, normal unload is idempotent, cleanup failures do not mask primary registration failures, and exported Host registration helpers also roll back their own partial direct registration before returning an exhaustive reverse-order disposer.
 - CI failure diagnostics are aggregated/redacted and scan only a bounded log prefix.
@@ -40,7 +41,7 @@
 
 ## v1.0.1 compatibility decision
 
-v1.0.1 keeps the v1.0.0 runtime contract unchanged while moving the reviewed Harness compatibility pin to official tag `dsh-v0.1.6-alpha.1`. ACP session-scoped `mcpServers` are now available upstream for ACP/headless clients, but dsh-artemis Web installation continues to require explicit Cordis/profile configuration because no public reversible Web-profile mutation seam is available.
+v1.0.1 keeps the v1.0.0 runtime contract unchanged while moving the reviewed Harness compatibility pin to official tag `dsh-v0.1.6-alpha.1`. After v1.0.1, PR #121 adds dsh-artemis generation of validated ACP/headless session-scoped `mcpServers`; Web installation still requires explicit Cordis/profile configuration because no public reversible Web-profile mutation seam is available.
 
 ## v1.0.0 release decision
 

@@ -16,7 +16,7 @@ Last updated: 2026-09-16
 | 2 — live human screen | **DONE** | Bounded multi-frame transport, explicit Start/Stop viewer and packaged DeepSeek Harness/Chromium E2E merged through PR #18 |
 | 3 — bounded device controls | **BLOCKED** | Pinned ARTEMIS exposes Back/Home/Recents only through a broader action/ADB surface; no narrow configured-MCP/Admin transport and no canonical Rotate contract |
 | 4 — tasks, traces & visual QA | **PARTIAL** | Bounded evidence/trace/visual QA are merged; Harness `dsh-v0.1.6-alpha.1` now supports durable MCP image result attachments, but ARTEMIS screenshot state still returns `file://` and replay remains side-effect-gated |
-| 5 — installation & agent experience | **PARTIAL** | MCP config/rules/setup UX and reversible plugin lifecycle are merged; Harness ACP now accepts session-scoped `mcpServers`, while automatic Web/Cordis profile mutation and direct ARTEMIS vision handoff remain gated |
+| 5 — installation & agent experience | **PARTIAL** | MCP config/rules/setup UX and reversible plugin lifecycle are merged; ACP/headless session-scoped ARTEMIS MCP config generation is delivered through PR #121 with real foreign-cwd launch evidence, while automatic Web/Cordis profile mutation and direct ARTEMIS vision handoff remain gated |
 | 6 — autonomous mobile computer-use | **PLANNED** | Build bounded code→build→ARTEMIS→observe→verify→fix workflows |
 | 7 — compatibility & polish | **ONGOING** | Hardening is merged through PR #116 and official Harness `dsh-v0.1.6-alpha.1` compatibility through PR #119; v1.0.1 is the compatibility refresh while real device/emulator smoke and upstream-gated capabilities remain outside the stable contract |
 
@@ -80,9 +80,10 @@ Delivered:
 - [x] PR #45: selected Python must be a regular file; directories cannot become MCP commands.
 - [x] PR #46: ARTEMIS root identity markers must be regular files.
 - [x] PR #48: root identity markers must also be non-symlink files, preventing `rules.md`/`__main__.py`/`pyproject.toml` redirection outside the configured checkout; Python symlinks remain supported intentionally.
+- [x] PR #121: `dsh-artemis-mcp-config --format acp-json` emits a validated session-scoped `{ "mcpServers": [...] }` fragment for Harness ACP/headless clients while keeping Cordis as the default; the real pinned ARTEMIS runtime launches successfully from a foreign Session cwd using the generated absolute Python command and bounded `PYTHONPATH` contract.
 
 Remaining gates:
-- [ ] Harness ACP `session/new` / `session/resume` now accept session-scoped `mcpServers`, but the Web/Cordis plugin still lacks a proven public reversible seam for patching the active profile with a sibling MCP row. Keep Web profile installation explicit/non-destructive.
+- [ ] ACP/headless session-scoped ARTEMIS MCP configuration is now delivered through PR #121. The Web/Cordis plugin still lacks a proven public reversible seam for patching the active profile with a sibling MCP row, so Web profile installation stays explicit/non-destructive.
 - [ ] Continue using `dsh-artemis-mcp-config`; do not mutate Cordis files or accept arbitrary browser filesystem paths as shortcuts.
 - [ ] Add capability-aware vision affordances only after a public Session-owned image handoff exists.
 
@@ -172,7 +173,7 @@ Phase 3 safe controls blocked on a narrow upstream contract
         ↓ (independent work can continue)
 Phase 4 bounded evidence + traces + ephemeral visual QA merged
         ↓
-Phase 5 truthful bounded setup/status + reversible plugin lifecycle proven; profile mutation and model image handoff remain upstream-gated
+Phase 5 truthful bounded setup/status + reversible plugin lifecycle + ACP session-scoped MCP config proven; Web profile mutation and model image handoff remain upstream-gated
         ↓
 Phase 7 compatibility/privacy/release hardening continues independently:
 real ARTEMIS daemon compatibility is proven;
