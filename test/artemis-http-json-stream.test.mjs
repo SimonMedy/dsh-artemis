@@ -164,3 +164,23 @@ test('Host JSON reader acquisition failure cancels the unread body and preserves
   await assert.rejects(client.health(), (error) => error === readerFailure)
   assert.equal(cancelled, true)
 })
+
+
+test('Host JSON read failure cancels the reader and preserves the original error', async () => {
+  const readFailure = new Error('read failed')
+  let cancelled = false
+  let released = false
+  const reader = {
+    async read() { throw readFailure },
+    cancel() {
+      cancelled = true
+      throw new Error('cancel failed')
+    },
+    releaseLock() { released = true },
+  }
+  const client = new ArtemisHttpClient({ fetchImpl: async () => responseWithReader(reader) })
+
+  await assert.rejects(client.health(), (error) => error === readFailure)
+  assert.equal(cancelled, true)
+  assert.equal(released, true)
+})

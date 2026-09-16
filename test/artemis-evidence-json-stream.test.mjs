@@ -197,3 +197,25 @@ test('evidence JSON reader acquisition failure cancels the unread body and prese
   )
   assert.equal(cancelled, true)
 })
+
+
+test('evidence JSON read failure cancels the reader and preserves the original error', async () => {
+  const readFailure = new Error('read failed')
+  let cancelled = false
+  let released = false
+  const reader = {
+    async read() { throw readFailure },
+    cancel() {
+      cancelled = true
+      return Promise.reject(new Error('cancel failed'))
+    },
+    releaseLock() { released = true },
+  }
+
+  await assert.rejects(
+    getTaskStatus(evidenceClient(reader)),
+    (error) => error === readFailure,
+  )
+  assert.equal(cancelled, true)
+  assert.equal(released, true)
+})
