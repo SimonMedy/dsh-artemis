@@ -78,57 +78,57 @@ jobs:
           if (httpTest.includes(httpMarker)) throw new Error('Host acquisition regression already exists')
           httpTest += `
 
-test('Host JSON reader acquisition failure cancels the unread body and preserves the original error', async () => {
-  const readerFailure = new Error('reader acquisition failed')
-  let cancelled = false
-  const client = new ArtemisHttpClient({
-    fetchImpl: async () => ({
-      ok: true,
-      status: 200,
-      headers: headers(),
-      body: {
-        getReader() { throw readerFailure },
-        cancel() {
-          cancelled = true
-          return Promise.reject(new Error('cancel failed'))
-        },
-      },
-    }),
-  })
+          test('Host JSON reader acquisition failure cancels the unread body and preserves the original error', async () => {
+            const readerFailure = new Error('reader acquisition failed')
+            let cancelled = false
+            const client = new ArtemisHttpClient({
+              fetchImpl: async () => ({
+                ok: true,
+                status: 200,
+                headers: headers(),
+                body: {
+                  getReader() { throw readerFailure },
+                  cancel() {
+                    cancelled = true
+                    return Promise.reject(new Error('cancel failed'))
+                  },
+                },
+              }),
+            })
 
-  await assert.rejects(client.health(), (error) => error === readerFailure)
-  assert.equal(cancelled, true)
-})
-`
+            await assert.rejects(client.health(), (error) => error === readerFailure)
+            assert.equal(cancelled, true)
+          })
+          `
 
           let evidenceTest = await readFile('test/artemis-evidence-json-stream.test.mjs')
           const evidenceMarker = "test('evidence JSON reader acquisition failure cancels the unread body and preserves the original error'"
           if (evidenceTest.includes(evidenceMarker)) throw new Error('evidence acquisition regression already exists')
           evidenceTest += `
 
-test('evidence JSON reader acquisition failure cancels the unread body and preserves the original error', async () => {
-  const readerFailure = new Error('reader acquisition failed')
-  let cancelled = false
-  const response = {
-    ok: true,
-    status: 200,
-    headers: headers(),
-    body: {
-      getReader() { throw readerFailure },
-      cancel() {
-        cancelled = true
-        throw new Error('cancel failed')
-      },
-    },
-  }
+          test('evidence JSON reader acquisition failure cancels the unread body and preserves the original error', async () => {
+            const readerFailure = new Error('reader acquisition failed')
+            let cancelled = false
+            const response = {
+              ok: true,
+              status: 200,
+              headers: headers(),
+              body: {
+                getReader() { throw readerFailure },
+                cancel() {
+                  cancelled = true
+                  throw new Error('cancel failed')
+                },
+              },
+            }
 
-  await assert.rejects(
-    getTaskStatus(evidenceClientWithResponse(response)),
-    (error) => error === readerFailure,
-  )
-  assert.equal(cancelled, true)
-})
-`
+            await assert.rejects(
+              getTaskStatus(evidenceClientWithResponse(response)),
+              (error) => error === readerFailure,
+            )
+            assert.equal(cancelled, true)
+          })
+          `
 
           const files = [
             ['src/host/artemis-http.mjs', http],
