@@ -1,4 +1,5 @@
 import { LIVE_ROUTE } from '../shared/protocol.mjs'
+import { isValidTimerDelay, MAX_TIMER_DELAY_MS } from '../shared/timer-delay.mjs'
 
 export const LIVE_MAX_RETRIES = 4
 const LIVE_RETRY_BASE_MS = 750
@@ -15,8 +16,8 @@ export function liveEndpoint(locationLike = globalThis.location) {
 
 export function liveRetryDelay(attempt, { baseMs = LIVE_RETRY_BASE_MS, maxMs = LIVE_RETRY_MAX_MS } = {}) {
   if (!Number.isInteger(attempt) || attempt < 1) throw new TypeError('attempt must be a positive integer')
-  if (!Number.isInteger(baseMs) || baseMs <= 0) throw new TypeError('baseMs must be a positive integer')
-  if (!Number.isInteger(maxMs) || maxMs <= 0) throw new TypeError('maxMs must be a positive integer')
+  if (!isValidTimerDelay(baseMs)) throw new TypeError(`baseMs must be a positive integer no greater than ${MAX_TIMER_DELAY_MS}`)
+  if (!isValidTimerDelay(maxMs)) throw new TypeError(`maxMs must be a positive integer no greater than ${MAX_TIMER_DELAY_MS}`)
   return Math.min(maxMs, baseMs * (2 ** (attempt - 1)))
 }
 
