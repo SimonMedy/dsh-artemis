@@ -135,6 +135,7 @@ function json(value) {
 export function renderHarnessMcpCordisRow(row) {
   if (!row?.config) throw new TypeError('A Harness MCP row is required')
   const config = row.config
+  if (typeof config.failOnStartupError !== 'boolean') throw new TypeError('Harness MCP failOnStartupError must be a boolean')
   const lines = [
     `- id: ${json(row.id)}`,
     `  name: ${json(row.name)}`,

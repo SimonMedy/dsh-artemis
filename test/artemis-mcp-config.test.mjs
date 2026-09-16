@@ -172,6 +172,40 @@ test('builds the Harness MCP row using the same stdio process contract as ARTEMI
   assert.equal(row.config.failOnStartupError, false)
 })
 
+test('rejects non-boolean Cordis startup error flags instead of coercing truthiness', () => {
+  const base = {
+    id: 'mcp-artemis',
+    name: '@deepseek-ai/dsh-mcp-client',
+    config: {
+      serverName: 'artemis',
+      transport: 'stdio',
+      command: '/safe/python',
+      args: ['-m', 'mcp_server'],
+      cwd: '/safe/artemis',
+      env: {},
+    },
+  }
+
+  for (const failOnStartupError of ['false', 0, 1, null, undefined]) {
+    assert.throws(
+      () => renderHarnessMcpCordisRow({
+        ...base,
+        config: { ...base.config, failOnStartupError },
+      }),
+      /failOnStartupError must be a boolean/,
+    )
+  }
+
+  assert.match(
+    renderHarnessMcpCordisRow({ ...base, config: { ...base.config, failOnStartupError: false } }),
+    /failOnStartupError: false/,
+  )
+  assert.match(
+    renderHarnessMcpCordisRow({ ...base, config: { ...base.config, failOnStartupError: true } }),
+    /failOnStartupError: true/,
+  )
+})
+
 test('quotes Cordis environment keys so YAML metacharacters cannot inject entries', () => {
   const hostileKey = 'BAD_KEY:\n      injected'
   const yaml = renderHarnessMcpCordisRow({
