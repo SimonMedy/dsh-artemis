@@ -1,8 +1,25 @@
 {
   "name": "dsh-artemis",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Native ARTEMIS integration for DeepSeek Harness",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SimonMedy/dsh-artemis.git"
+  },
+  "homepage": "https://github.com/SimonMedy/dsh-artemis#readme",
+  "bugs": {
+    "url": "https://github.com/SimonMedy/dsh-artemis/issues"
+  },
+  "keywords": [
+    "deepseek",
+    "harness",
+    "artemis",
+    "android",
+    "mcp",
+    "automation"
+  ],
   "type": "module",
   "main": "./src/index.mjs",
   "bin": {
@@ -31,7 +48,9 @@
     "lib/client.js",
     "cordis.patch.yml",
     "README.md",
-    "SECURITY.md"
+    "SECURITY.md",
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
