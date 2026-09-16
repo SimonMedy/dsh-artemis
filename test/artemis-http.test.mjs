@@ -35,6 +35,21 @@ test('base URL defaults and rejects non-loopback hosts', () => {
   assert.throws(() => resolveArtemisBaseUrl('http://example.com:8000'), (error) => error.code === 'non-loopback-base-url')
 })
 
+test('byte limits require safe integer arithmetic headroom', () => {
+  assert.throws(
+    () => new ArtemisHttpClient({ maxJsonBytes: Number.MAX_SAFE_INTEGER + 1 }),
+    /maxJsonBytes must be a positive safe integer/,
+  )
+  assert.doesNotThrow(() => new ArtemisHttpClient({ maxJsonBytes: Number.MAX_SAFE_INTEGER }))
+
+  const maxSafeFrameBytes = Number.MAX_SAFE_INTEGER - 16_604
+  assert.doesNotThrow(() => new ArtemisHttpClient({ maxFrameBytes: maxSafeFrameBytes }))
+  assert.throws(
+    () => new ArtemisHttpClient({ maxFrameBytes: maxSafeFrameBytes + 1 }),
+    /maxFrameBytes must be a positive safe integer with multipart overhead headroom/,
+  )
+})
+
 test('health and device list use the ARTEMIS baseline endpoints', async () => {
   await withServer((req, res) => {
     if (req.url === '/api/status') return json(res, { status: 'ready' })

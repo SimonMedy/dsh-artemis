@@ -31,6 +31,35 @@ function evidenceClient(reader, { maxJsonBytes = 1_048_576 } = {}) {
   })
 }
 
+test('evidence fallback ignores unsafe custom JSON byte limits', async () => {
+  let cancelled = false
+  let readerAcquired = false
+  const client = {
+    baseUrl: new URL('http://127.0.0.1:8000'),
+    maxJsonBytes: Number.MAX_SAFE_INTEGER + 1,
+    timeoutMs: 2_000,
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      headers: headers(String(1_048_577)),
+      body: {
+        getReader() {
+          readerAcquired = true
+          throw new Error('reader should not be acquired')
+        },
+        cancel() { cancelled = true },
+      },
+    }),
+  }
+
+  await assert.rejects(
+    getTaskStatus(client),
+    (error) => error instanceof ArtemisProtocolError && error.code === 'response-too-large',
+  )
+  assert.equal(cancelled, true)
+  assert.equal(readerAcquired, false)
+})
+
 test('evidence JSON reader rejects non-byte stream chunks before size accounting', async () => {
   let released = false
   const reader = {

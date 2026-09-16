@@ -115,7 +115,7 @@ async function getJson(client, endpoint) {
   if (!client || typeof client.fetchImpl !== 'function' || !(client.baseUrl instanceof URL)) {
     throw new TypeError('A configured ARTEMIS HTTP client is required')
   }
-  const maxBytes = Number.isInteger(client.maxJsonBytes) && client.maxJsonBytes > 0 ? client.maxJsonBytes : 1_048_576
+  const maxBytes = Number.isSafeInteger(client.maxJsonBytes) && client.maxJsonBytes > 0 ? client.maxJsonBytes : 1_048_576
   const timeoutMs = Number.isInteger(client.timeoutMs) && client.timeoutMs > 0 ? client.timeoutMs : 2_000
   let response
   try {
