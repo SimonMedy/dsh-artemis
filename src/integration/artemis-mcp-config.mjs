@@ -2,6 +2,8 @@ import { constants } from 'node:fs'
 import { access, lstat, stat } from 'node:fs/promises'
 import path from 'node:path'
 
+const HARNESS_MCP_SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]{1,32}$/
+
 const REQUIRED_ARTEMIS_FILES = Object.freeze([
   'pyproject.toml',
   path.join('mcp_server', '__main__.py'),
@@ -135,6 +137,24 @@ function json(value) {
 export function renderHarnessMcpCordisRow(row) {
   if (!row?.config) throw new TypeError('A Harness MCP row is required')
   const config = row.config
+  if (config.transport !== 'stdio') throw new TypeError("Harness MCP transport must be 'stdio'")
+  if (typeof config.serverName !== 'string' || !HARNESS_MCP_SERVER_NAME_PATTERN.test(config.serverName)) {
+    throw new TypeError('Harness MCP serverName must match [A-Za-z0-9_-]{1,32}')
+  }
+  if (typeof config.command !== 'string') throw new TypeError('Harness MCP command must be a string')
+  const args = config.args === undefined ? [] : config.args
+  if (!Array.isArray(args) || args.some((value) => typeof value !== 'string')) {
+    throw new TypeError('Harness MCP args must be an array of strings')
+  }
+  const env = config.env === undefined ? {} : config.env
+  if (env === null || Array.isArray(env) || typeof env !== 'object') {
+    throw new TypeError('Harness MCP env must be an object of string values')
+  }
+  if (Object.values(env).some((value) => typeof value !== 'string')) {
+    throw new TypeError('Harness MCP env must be an object of string values')
+  }
+  const cwd = config.cwd === undefined ? '' : config.cwd
+  if (typeof cwd !== 'string') throw new TypeError('Harness MCP cwd must be a string')
   if (typeof config.failOnStartupError !== 'boolean') throw new TypeError('Harness MCP failOnStartupError must be a boolean')
   const lines = [
     `- id: ${json(row.id)}`,
@@ -143,11 +163,11 @@ export function renderHarnessMcpCordisRow(row) {
     `    serverName: ${json(config.serverName)}`,
     `    transport: ${json(config.transport)}`,
     `    command: ${json(config.command)}`,
-    `    args: ${json(Array.from(config.args ?? []))}`,
-    `    cwd: ${json(config.cwd)}`,
+    `    args: ${json(args)}`,
+    `    cwd: ${json(cwd)}`,
     '    env:',
   ]
-  for (const [key, value] of Object.entries(config.env ?? {})) {
+  for (const [key, value] of Object.entries(env)) {
     lines.push(`      ${json(key)}: ${json(value)}`)
   }
   lines.push(`    failOnStartupError: ${config.failOnStartupError ? 'true' : 'false'}`)
