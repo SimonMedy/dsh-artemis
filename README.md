@@ -54,6 +54,18 @@ npm exec --yes \
 
 The command prints one Cordis row to stdout and never edits profile files. Review that row, then add it to the active Harness profile using your normal Cordis/profile workflow.
 
+### ACP / headless sessions
+
+DeepSeek Harness `dsh-v0.1.6-alpha.1` also accepts session-scoped MCP servers through ACP. Generate the ARTEMIS declaration as an ACP `mcpServers` JSON fragment:
+
+```bash
+dsh-artemis-mcp-config \
+  --artemis-root /absolute/path/to/artemis \
+  --format acp-json
+```
+
+Pass the emitted `mcpServers` array with the ACP `session/new` or `session/resume` request. The generator only prints JSON; it never creates, resumes or modifies a Session. Harness owns the ACP Session working directory, so this format deliberately omits `cwd`; the generated `PYTHONPATH` keeps `python -m mcp_server` anchored to the validated ARTEMIS root. Web/Cordis profile installation remains explicit and separate.
+
 You can also run the generator from a checked-out release:
 
 ```bash
@@ -82,7 +94,7 @@ These are intentionally outside the v1.0.1 stable contract:
 
 - Back/Home/Recents/Rotate UI controls remain gated until ARTEMIS exposes a narrow inspected upstream contract; the plugin will not substitute a generic ADB/shell surface.
 - Replay remains gated because the pinned ARTEMIS replay path can materialize files/chunks.
-- Model-owned screenshot handoff remains gated until DeepSeek Harness exposes a supported Session-owned image attachment seam.
+- Direct ARTEMIS screenshot handoff to the model remains gated: Harness can now persist MCP image result blocks for image-capable models, but ARTEMIS screenshot state still returns a local `file://` JPEG reference rather than MCP image content.
 - Automatic mutation of the active Harness profile remains gated until Harness exposes a public reversible profile/MCP API.
 - CI proves the real pinned ARTEMIS daemon and the packaged Harness/Web/Chromium integration, but it does **not** claim real Android device/emulator E2E yet.
 
