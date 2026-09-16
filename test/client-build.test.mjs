@@ -11,7 +11,7 @@ test('client build is pinned to the reviewed Harness toolchain and strict extern
   const pkg = JSON.parse(pkgText)
 
   assert.equal(pkg.scripts['bundle:client'], 'node scripts/build-client.mjs')
-  assert.match(script, /0d1f50007f9bca3f52b06e1c3074fa14d5fb0720/)
+  assert.match(script, /0a15e36e7f82b6ed45af6fa9759f29b40dcd965d/)
   assert.match(script, /pnpm@11\.7\.0/)
   assert.match(script, /\^0\.22\.2/)
   assert.match(script, /git', \['-C', harnessRoot, 'rev-parse', 'HEAD'\]/)
