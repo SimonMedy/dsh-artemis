@@ -6,7 +6,7 @@ on:
       - gpt/release-v1.0.0
     paths:
       - .github/workflows/temp-release-v1-docs.yml
-      - scripts/temp-release-v1-docs-fixed.mjs
+      - scripts/temp-release-v1-docs-final.mjs
 
 permissions:
   contents: write
@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: '22'
       - name: Apply release documentation guards
-        run: node scripts/temp-release-v1-docs-fixed.mjs
+        run: node scripts/temp-release-v1-docs-final.mjs
       - name: Validate release candidate
         run: npm run check
       - name: Commit release documentation updates
