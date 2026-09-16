@@ -1,0 +1,50 @@
+name: Temporary docs refresh through PR 98
+
+on:
+  push:
+    branches:
+      - gpt/phase-7-docs-through-98
+    paths:
+      - .github/workflows/temp-docs-through-98.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: true
+      - name: Refresh docs through PR 98
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          roadmap = Path('docs/roadmap.md')
+          text = roadmap.read_text()
+          old = 'hardening merged through PR #96'
+          if text.count(old) != 2:
+              raise SystemExit(f'roadmap status count: {text.count(old)}')
+          text = text.replace(old, 'hardening merged through PR #98')
+          marker = '- [x] PR #96: Host and evidence bounded JSON readers cancel acquired readers on in-loop read, chunk-validation and response-size failures, preserve the exact primary error when cancellation fails, and still release reader locks best-effort.'
+          if text.count(marker) != 1:
+              raise SystemExit(f'roadmap marker count: {text.count(marker)}')
+          extra = marker + '\n- [x] PR #98: browser bounded JSON readers now apply the same acquired-reader cleanup contract on read, chunk-validation and response-size failures; the checked browser bundle was regenerated with the pinned Harness and revalidated by full Harness/Cordis/Web/Chromium compatibility.'
+          roadmap.write_text(text.replace(marker, extra))
+
+          release = Path('docs/release-readiness.md')
+          text = release.read_text()
+          marker = '- After reader acquisition, Host and evidence bounded JSON streams cancel the acquired reader on read, chunk-validation or response-size failures, preserve the exact primary error if cancellation fails, and release the reader lock best-effort.'
+          if text.count(marker) != 1:
+              raise SystemExit(f'release marker count: {text.count(marker)}')
+          extra = marker + '\n- Browser bounded JSON streams apply the same acquired-reader cleanup contract; the checked browser bundle is regenerated only through the pinned DeepSeek Harness toolchain and remains byte-for-byte reproducible under compatibility CI.'
+          release.write_text(text.replace(marker, extra))
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/roadmap.md docs/release-readiness.md
+          git commit -m "docs: refresh hardening evidence through PR 98"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
