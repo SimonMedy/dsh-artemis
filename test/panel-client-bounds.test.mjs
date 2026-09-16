@@ -74,15 +74,27 @@ test('panel adapter rejects oversized browser-visible strings instead of truncat
   })
 })
 
-test('panel adapter rejects malformed upstream types', async () => {
-  await assert.rejects(
-    createBoundedPanelClient(fakeClient({ async listDevices() { return [{ ...validDevice(), busy: 'false' }] } })).listDevices(),
-    isPanelMetadataError,
-  )
-  await assert.rejects(
-    createBoundedPanelClient(fakeClient({ async getStreamState() { return { connected: 'yes', serial: null } } })).getStreamState(),
-    isPanelMetadataError,
-  )
+test('panel adapter rejects malformed upstream types', async (t) => {
+  await t.test('health reachable', async () => {
+    for (const reachable of ['false', 1, null, undefined]) {
+      await assert.rejects(
+        createBoundedPanelClient(fakeClient({ async health() { return { reachable, status: 'ready' } } })).health(),
+        isPanelMetadataError,
+      )
+    }
+  })
+  await t.test('device busy', async () => {
+    await assert.rejects(
+      createBoundedPanelClient(fakeClient({ async listDevices() { return [{ ...validDevice(), busy: 'false' }] } })).listDevices(),
+      isPanelMetadataError,
+    )
+  })
+  await t.test('stream connected', async () => {
+    await assert.rejects(
+      createBoundedPanelClient(fakeClient({ async getStreamState() { return { connected: 'yes', serial: null } } })).getStreamState(),
+      isPanelMetadataError,
+    )
+  })
 })
 
 test('snapshot and live transport remain delegated to the validated ARTEMIS client', async () => {
