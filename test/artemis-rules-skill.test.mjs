@@ -28,6 +28,14 @@ test('loads ARTEMIS rules exactly from the validated installation', async () => 
   assert.equal(loaded.content, content)
 })
 
+test('requires a safe integer rules byte limit', async () => {
+  const root = await fakeArtemisRoot()
+  await assert.rejects(
+    loadArtemisRules(root, { maxBytes: Number.MAX_SAFE_INTEGER + 1 }),
+    /maxBytes must be a positive safe integer/,
+  )
+})
+
 test('rejects empty, oversized, and invalid UTF-8 rules', async () => {
   const emptyRoot = await fakeArtemisRoot('   \n')
   await assert.rejects(loadArtemisRules(emptyRoot), /no instructions/)

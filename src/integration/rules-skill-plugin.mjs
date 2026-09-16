@@ -20,8 +20,8 @@ function normalizeConfig(config) {
   }
 
   const maxBytes = config.maxRulesBytes ?? DEFAULT_MAX_ARTEMIS_RULES_BYTES
-  if (!Number.isInteger(maxBytes) || maxBytes <= 0) {
-    throw new TypeError('config.maxRulesBytes must be a positive integer')
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
+    throw new TypeError('config.maxRulesBytes must be a positive safe integer')
   }
 
   return Object.freeze({ artemisRoot: path.normalize(artemisRoot), maxBytes })

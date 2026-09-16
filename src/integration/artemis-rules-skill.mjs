@@ -5,8 +5,8 @@ import { validateArtemisRoot } from './artemis-mcp-config.mjs'
 export const ARTEMIS_RULES_SKILL_NAME = 'artemis-mobile-testing'
 export const DEFAULT_MAX_ARTEMIS_RULES_BYTES = 512 * 1024
 
-function assertPositiveInteger(name, value) {
-  if (!Number.isInteger(value) || value <= 0) throw new TypeError(`${name} must be a positive integer`)
+function assertPositiveSafeInteger(name, value) {
+  if (!Number.isSafeInteger(value) || value <= 0) throw new TypeError(`${name} must be a positive safe integer`)
 }
 
 export async function loadArtemisRules(
@@ -17,7 +17,7 @@ export async function loadArtemisRules(
     readFileImpl = readFile,
   } = {},
 ) {
-  assertPositiveInteger('maxBytes', maxBytes)
+  assertPositiveSafeInteger('maxBytes', maxBytes)
   const root = await validateArtemisRoot(artemisRoot)
   const rulesPath = path.join(root, 'mcp_server', 'rules.md')
   const metadata = await statImpl(rulesPath)

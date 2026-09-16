@@ -23,7 +23,11 @@ test('rules-skill config requires an explicit absolute ARTEMIS root', () => {
   assert.throws(() => normalizeRulesSkillConfig(), /object/)
   assert.throws(() => normalizeRulesSkillConfig({}), /artemisRoot/)
   assert.throws(() => normalizeRulesSkillConfig({ artemisRoot: './artemis' }), /absolute path/)
-  assert.throws(() => normalizeRulesSkillConfig({ artemisRoot: '/tmp/artemis', maxRulesBytes: 0 }), /positive integer/)
+  assert.throws(() => normalizeRulesSkillConfig({ artemisRoot: '/tmp/artemis', maxRulesBytes: 0 }), /positive safe integer/)
+  assert.throws(
+    () => normalizeRulesSkillConfig({ artemisRoot: '/tmp/artemis', maxRulesBytes: Number.MAX_SAFE_INTEGER + 1 }),
+    /positive safe integer/,
+  )
 })
 
 test('plugin effect registers upstream rules through Harness lifecycle', async () => {
