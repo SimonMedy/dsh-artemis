@@ -18,7 +18,7 @@ Last updated: 2026-09-16
 | 4 — tasks, traces & visual QA | **PARTIAL** | Bounded task evidence PR #19, latest-trace drill-down PR #21 and ephemeral visual QA checkpoint PR #22 merged; replay and model-image handoff remain gated |
 | 5 — installation & agent experience | **PARTIAL** | MCP config + rules skill + truthful bounded setup/status UX are merged and reversible plugin lifecycle is proven; automatic profile mutation and vision affordances remain gated |
 | 6 — autonomous mobile computer-use | **PLANNED** | Build bounded code→build→ARTEMIS→observe→verify→fix workflows |
-| 7 — compatibility & polish | **ONGOING** | Security, privacy, response-boundary, lifecycle, CI/resource cleanup and release-readiness hardening merged through PR #106; current Harness/ARTEMIS pins were re-probed and revalidated on 2026-09-15, while real device/emulator smoke, licensing decision and remaining release polish stay open |
+| 7 — compatibility & polish | **ONGOING** | Security, privacy, response-boundary, lifecycle, CI/resource cleanup and release-readiness hardening merged through PR #108; current Harness/ARTEMIS pins were re-probed and revalidated on 2026-09-15, while real device/emulator smoke, licensing decision and remaining release polish stay open |
 
 ## Non-negotiable foundations
 
@@ -97,7 +97,7 @@ Remaining gates:
 
 ## Phase 7 — compatibility and polish
 
-**Status: ONGOING — hardening merged through PR #106**
+**Status: ONGOING — hardening merged through PR #108**
 
 Delivered:
 - [x] PR #26: browser response baseline (`no-store`, `nosniff`) applies before route logic/trust rejection.
@@ -148,6 +148,7 @@ Delivered:
 - [x] PR #102: the bounded panel adapter now requires `health.reachable` to be an actual boolean, rejecting truthiness coercion and aligning health metadata with the existing strict `device.busy` and `stream.connected` contracts.
 - [x] PR #104: Host JSON/frame limits now require safe-integer bounds; live-frame configuration reserves worst-case multipart overhead so buffer arithmetic remains safe, and evidence adapters fall back to the bounded default instead of accepting unsafe custom JSON limits.
 - [x] PR #106: Host request and snapshot timeouts now fail fast above the signed 32-bit timer ceiling, while evidence adapters ignore overflowing custom timeout values and retain the bounded 2 s default instead of allowing Node to collapse them to 1 ms.
+- [x] PR #108: exported browser live retry delays now reuse the shared timer ceiling for custom base/max values, preserving the existing bounded default backoff while rejecting overrange caller-provided delays; the checked browser bundle was regenerated with the pinned Harness and revalidated by full Harness/Cordis/Web/Chromium compatibility.
 - [x] Runtime-affecting PR heads continue to pass pinned DeepSeek Harness package/Cordis/Web/Chromium gates; ARTEMIS-facing changes also pass the real daemon compatibility gate.
 
 Remaining Phase 7 gates:
