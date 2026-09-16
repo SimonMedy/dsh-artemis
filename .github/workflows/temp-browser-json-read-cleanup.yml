@@ -1,0 +1,135 @@
+name: Temporary browser JSON read cleanup
+
+on:
+  push:
+    branches:
+      - gpt/phase-7-browser-json-read-cleanup
+    paths:
+      - .github/workflows/temp-browser-json-read-cleanup.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 24
+      - name: Patch browser JSON reader cleanup and rebuild bundle
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path('src/client/bounded-json.mjs')
+          text = source.read_text()
+          old = '''  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!(value instanceof Uint8Array)) throw new Error(`${label} returned an invalid response body`)
+      total += value.byteLength
+      if (total > maxBytes) {
+        try { await reader.cancel() } catch {}
+        throw new Error(`${label} exceeded the response size limit`)
+      }
+      chunks.push(value)
+    }
+  } finally {
+    try { reader.releaseLock?.() } catch {}
+  }'''
+          new = '''  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!(value instanceof Uint8Array)) throw new Error(`${label} returned an invalid response body`)
+      total += value.byteLength
+      if (total > maxBytes) {
+        throw new Error(`${label} exceeded the response size limit`)
+      }
+      chunks.push(value)
+    }
+  } catch (error) {
+    try { await reader.cancel?.() } catch {}
+    throw error
+  } finally {
+    try { reader.releaseLock?.() } catch {}
+  }'''
+          if text.count(old) != 1:
+              raise SystemExit(f'bounded-json loop count: {text.count(old)}')
+          source.write_text(text.replace(old, new))
+
+          test = Path('test/bounded-json-release-lock.test.mjs')
+          text = test.read_text()
+          marker = "test('browser JSON reader preserves the primary protocol error when releaseLock cleanup fails'"
+          if text.count(marker) != 1:
+              raise SystemExit(f'test marker count: {text.count(marker)}')
+          addition = '''test('browser JSON read failure cancels the reader and preserves the original error', async () => {
+  const readFailure = new Error('read failed')
+  let cancelled = false
+  let released = false
+  const reader = {
+    async read() { throw readFailure },
+    cancel() {
+      cancelled = true
+      return Promise.reject(new Error('cancel failed'))
+    },
+    releaseLock() { released = true },
+  }
+  const response = {
+    headers: {
+      get(name) {
+        return name.toLowerCase() === 'content-type' ? 'application/json' : null
+      },
+    },
+    body: {
+      getReader() { return reader },
+    },
+  }
+
+  await assert.rejects(readBoundedJsonResponse(response), (error) => error === readFailure)
+  assert.equal(cancelled, true)
+  assert.equal(released, true)
+})
+
+test('browser JSON invalid chunk cancels the reader without masking the protocol error', async () => {
+  let cancelled = false
+  let released = false
+  const reader = {
+    async read() { return { done: false, value: 'not-bytes' } },
+    cancel() {
+      cancelled = true
+      throw new Error('cancel failed synchronously')
+    },
+    releaseLock() { released = true },
+  }
+  const response = {
+    headers: {
+      get(name) {
+        return name.toLowerCase() === 'content-type' ? 'application/json' : null
+      },
+    },
+    body: {
+      getReader() { return reader },
+    },
+  }
+
+  await assert.rejects(readBoundedJsonResponse(response), /invalid response body/)
+  assert.equal(cancelled, true)
+  assert.equal(released, true)
+})
+
+'''
+          test.write_text(text.replace(marker, addition + marker))
+          PY
+          npm run bundle:client
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/client/bounded-json.mjs test/bounded-json-release-lock.test.mjs lib/client.js
+          git commit -m "fix: clean up browser JSON stream read failures"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
