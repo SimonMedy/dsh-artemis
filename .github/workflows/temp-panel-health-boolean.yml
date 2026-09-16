@@ -6,6 +6,7 @@ on:
       - gpt/phase-7-panel-health-boolean
     paths:
       - .github/workflows/temp-panel-health-boolean.yml
+      - scripts/temp-patch-panel-health.mjs
 
 permissions:
   contents: write
@@ -20,65 +21,7 @@ jobs:
           persist-credentials: true
       - name: Harden panel health boolean
         run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          source = Path('src/host/panel-client-bounds.mjs')
-          text = source.read_text()
-          old = """      return Object.freeze({
-        reachable: Boolean(value.reachable),
-        status: boundedString(value.status, PANEL_METADATA_LIMITS.maxStatusChars, 'health.status'),
-      })"""
-          new = """      if (typeof value.reachable !== 'boolean') throw protocolError('health.reachable')
-      return Object.freeze({
-        reachable: value.reachable,
-        status: boundedString(value.status, PANEL_METADATA_LIMITS.maxStatusChars, 'health.status'),
-      })"""
-          if text.count(old) != 1:
-              raise SystemExit(f'health block count: {text.count(old)}')
-          source.write_text(text.replace(old, new))
-
-          test = Path('test/panel-client-bounds.test.mjs')
-          text = test.read_text()
-          marker = "test('panel adapter rejects malformed upstream types', async () => {"
-          if text.count(marker) != 1:
-              raise SystemExit(f'test marker count: {text.count(marker)}')
-          old_test = """test('panel adapter rejects malformed upstream types', async () => {
-  await assert.rejects(
-    createBoundedPanelClient(fakeClient({ async listDevices() { return [{ ...validDevice(), busy: 'false' }] } })).listDevices(),
-    isPanelMetadataError,
-  )
-  await assert.rejects(
-    createBoundedPanelClient(fakeClient({ async getStreamState() { return { connected: 'yes', serial: null } } })).getStreamState(),
-    isPanelMetadataError,
-  )
-})"""
-          new_test = """test('panel adapter rejects malformed upstream types', async (t) => {
-  await t.test('health reachable', async () => {
-    for (const reachable of ['false', 1, null, undefined]) {
-      await assert.rejects(
-        createBoundedPanelClient(fakeClient({ async health() { return { reachable, status: 'ready' } } })).health(),
-        isPanelMetadataError,
-      )
-    }
-  })
-  await t.test('device busy', async () => {
-    await assert.rejects(
-      createBoundedPanelClient(fakeClient({ async listDevices() { return [{ ...validDevice(), busy: 'false' }] } })).listDevices(),
-      isPanelMetadataError,
-    )
-  })
-  await t.test('stream connected', async () => {
-    await assert.rejects(
-      createBoundedPanelClient(fakeClient({ async getStreamState() { return { connected: 'yes', serial: null } } })).getStreamState(),
-      isPanelMetadataError,
-    )
-  })
-})"""
-          if text.count(old_test) != 1:
-              raise SystemExit(f'malformed-types block count: {text.count(old_test)}')
-          test.write_text(text.replace(old_test, new_test))
-          PY
+          node scripts/temp-patch-panel-health.mjs
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/host/panel-client-bounds.mjs test/panel-client-bounds.test.mjs
