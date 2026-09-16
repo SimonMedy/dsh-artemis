@@ -19,9 +19,8 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
 env:
-  HARNESS_SHA: 0d1f50007f9bca3f52b06e1c3074fa14d5fb0720
+  HARNESS_SHA: 0a15e36e7f82b6ed45af6fa9759f29b40dcd965d
   PNPM_VERSION: 11.7.0
 jobs:
   install-compose-and-browser-e2e:
