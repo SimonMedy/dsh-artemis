@@ -50,8 +50,9 @@ export function createBoundedPanelClient(client) {
     async health() {
       const value = await client.health()
       if (!value || typeof value !== 'object' || Array.isArray(value)) throw protocolError('health')
+      if (typeof value.reachable !== 'boolean') throw protocolError('health.reachable')
       return Object.freeze({
-        reachable: Boolean(value.reachable),
+        reachable: value.reachable,
         status: boundedString(value.status, PANEL_METADATA_LIMITS.maxStatusChars, 'health.status'),
       })
     },
