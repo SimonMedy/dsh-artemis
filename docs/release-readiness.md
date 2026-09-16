@@ -21,6 +21,7 @@
 - Browser bounded JSON streams apply the same acquired-reader cleanup contract; the checked browser bundle is regenerated only through the pinned DeepSeek Harness toolchain and remains byte-for-byte reproducible under compatibility CI.
 - Browser snapshot streams apply the same acquired-reader cleanup contract for read, chunk-validation and size-limit failures; cancellation and lock-release cleanup remain best-effort without replacing the primary error, and the checked bundle remains pinned-Harness reproducible.
 - Browser-visible health metadata fails closed on type mismatches: `health.reachable` must be a real boolean at the bounded panel boundary, matching the strict boolean policy already applied to device and stream state fields.
+- Host-configured JSON and live-frame memory limits stay in the safe-integer domain; frame limits reserve worst-case multipart overhead before buffering, while evidence adapters ignore unsafe custom JSON limits and retain their bounded default.
 
 ## Remaining release gates
 
