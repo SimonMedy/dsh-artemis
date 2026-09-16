@@ -2,6 +2,35 @@
 
 All notable changes to `dsh-artemis` are documented here.
 
+## [1.1.0] - 2026-09-16
+
+First feature release after the stable v1.0 line, adding validated session-scoped ARTEMIS MCP configuration for DeepSeek Harness ACP/headless clients.
+
+### Added
+
+- Add `dsh-artemis-mcp-config --format acp-json` to emit a directly reusable `{ "mcpServers": [...] }` fragment for Harness ACP `session/new` / `session/resume`.
+- Keep Cordis as the unchanged default output for Web/profile workflows.
+- Validate ACP stdio shape using the same reviewed ARTEMIS root/Python selection as the Cordis generator.
+- Add real pinned-ARTEMIS CI coverage that launches `python -m mcp_server` from a foreign Session working directory, proving the generated absolute Python command + bounded `PYTHONPATH` contract works independently of the ACP workspace.
+
+### Security and architecture
+
+- The new format only prints configuration; it does not open ACP, create/resume Sessions or edit profiles.
+- No browser route, Host privilege, generic shell/ADB surface or Web/Cordis profile mutation is added.
+- ACP environment entries are validated and limited to the already reviewed ARTEMIS configuration values.
+
+### Compatibility
+
+- Based on official DeepSeek Harness `dsh-v0.1.6-alpha.1` and the existing pinned ARTEMIS revision.
+- Feature PR #121 passed repository CI, real ARTEMIS compatibility including the foreign-cwd MCP smoke, and the full packaged Harness/Cordis/Web/Chromium compatibility gate.
+
+### Remaining limitations
+
+- Web/Cordis profile installation remains explicit until Harness exposes a public reversible active-profile mutation seam.
+- Direct ARTEMIS screenshot → model handoff remains gated because ARTEMIS screenshot state still returns a local `file://` JPEG reference instead of MCP image content.
+- Replay and broader device controls remain gated as documented in the roadmap.
+- Real Android device/emulator E2E remains a dedicated-infrastructure target.
+
 ## [1.0.1] - 2026-09-16
 
 Compatibility refresh for the official DeepSeek Harness `dsh-v0.1.6-alpha.1` release.

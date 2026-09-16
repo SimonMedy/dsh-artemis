@@ -8,14 +8,15 @@
 
 **Native ARTEMIS integration for DeepSeek Harness — a bounded Android observe / inspect / supervise surface for coding agents and humans.**
 
-`dsh-artemis` keeps ARTEMIS MCP as the agent-facing automation authority and adds a native DeepSeek Harness integration around it. The stable v1.0.1 scope focuses on safe observation, task/trace evidence, MCP setup and a reversible Harness plugin lifecycle.
+`dsh-artemis` keeps ARTEMIS MCP as the agent-facing automation authority and adds a native DeepSeek Harness integration around it. The stable v1.1.0 scope focuses on safe observation, task/trace evidence, MCP setup and a reversible Harness plugin lifecycle.
 
-## What ships in v1.0.1
+## What ships in v1.1.0
 
 - Native Android status and right-sidebar UI built with Harness primitives.
 - Explicit bounded screenshots and a human-facing live screen viewer.
 - Bounded task evidence, latest-trace inspection and ephemeral visual QA checkpoints.
 - ARTEMIS MCP configuration generation with strict stdio schema validation.
+- ACP/headless session-scoped ARTEMIS MCP configuration through `--format acp-json`, with Cordis kept as the default Web/profile format.
 - Optional ARTEMIS behavioral rules as a native Harness skill.
 - Loopback-only product HTTP transport with bounded JSON/frame/time limits.
 - Transactional route registration and reversible install → remove → reinstall lifecycle.
@@ -32,12 +33,12 @@ See [`docs/product-vision.md`](docs/product-vision.md), [`docs/roadmap.md`](docs
 
 ## Install
 
-v1.0.1 is distributed as a tagged GitHub release. npm registry publication is intentionally disabled for this release.
+v1.1.0 is distributed as a tagged GitHub release. npm registry publication is intentionally disabled for this release.
 
 Install the plugin into a Harness profile:
 
 ```bash
-dsh plugin --profile my-profile add 'git+https://github.com/SimonMedy/dsh-artemis.git#v1.0.1'
+dsh plugin --profile my-profile add 'git+https://github.com/SimonMedy/dsh-artemis.git#v1.1.0'
 ```
 
 The plugin bundle is reversible: removing it from the profile must remove the plugin layer without patching Harness source or leaving stale Cordis state.
@@ -48,7 +49,7 @@ The plugin bundle is reversible: removing it from the profile must remove the pl
 
 ```bash
 npm exec --yes \
-  --package='git+https://github.com/SimonMedy/dsh-artemis.git#v1.0.1' \
+  --package='git+https://github.com/SimonMedy/dsh-artemis.git#v1.1.0' \
   -- dsh-artemis-mcp-config --artemis-root /absolute/path/to/artemis
 ```
 
@@ -90,7 +91,7 @@ Read [`SECURITY.md`](SECURITY.md) before changing Host routes, device controls, 
 
 ## Known limits
 
-These are intentionally outside the v1.0.1 stable contract:
+These are intentionally outside the v1.1.0 stable contract:
 
 - Back/Home/Recents/Rotate UI controls remain gated until ARTEMIS exposes a narrow inspected upstream contract; the plugin will not substitute a generic ADB/shell surface.
 - Replay remains gated because the pinned ARTEMIS replay path can materialize files/chunks.
