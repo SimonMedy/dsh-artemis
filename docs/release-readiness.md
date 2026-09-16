@@ -26,6 +26,7 @@
 - Browser live retry helpers apply the same timer ceiling to caller-provided base/max delays, while the product defaults remain 750/1,500/3,000 ms and finite; the checked bundle remains pinned-Harness reproducible.
 - Harness MCP Cordis rendering quotes both environment keys and values as JSON-compatible YAML scalars, so hostile/custom env-key text cannot alter the emitted configuration structure.
 - Harness MCP Cordis startup-error policy fails closed on type mismatches: `failOnStartupError` must be a real boolean, so custom rows cannot silently invert policy through JavaScript truthiness.
+- Harness MCP Cordis stdio rows are validated against the pinned Harness schema before rendering: transport/serverName/command/args/env/cwd types are explicit, omitted args/env/cwd retain the upstream defaults, and malformed iterable/object inputs are not coerced.
 
 ## Remaining release gates
 
