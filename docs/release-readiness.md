@@ -1,13 +1,13 @@
 # Release readiness
 
-`dsh-artemis` v1.0.0 is the first stable GitHub-release scope. The source is MIT licensed and package metadata uses version `1.0.0`; npm registry publication remains intentionally disabled with `private: true`, so the supported v1.0.0 distribution path is the tagged GitHub release / Git spec.
+`dsh-artemis` v1.0.1 is the current stable GitHub-release scope. It is a compatibility-only refresh of the v1.0.0 contract for official DeepSeek Harness `dsh-v0.1.6-alpha.1`; npm registry publication remains intentionally disabled with `private: true`, so the supported distribution path is the tagged GitHub release / Git spec.
 
 ## What is already proven
 
 - Real npm package contents are checked with `npm pack --dry-run` so repository-only files, fixtures, scripts and workflows cannot silently enter distribution.
 - DeepSeek Harness compatibility installs the package through the public plugin path, composes Cordis, removes the package, verifies composition without Artemis, reinstalls it, starts authenticated Harness Web and exercises the native panel with Chromium.
 - The pinned ARTEMIS runtime is installed from its upstream lockfile and exercised through the real daemon compatibility smoke without model credentials or device commands.
-- Supported Harness and ARTEMIS revisions were refreshed on 2026-09-15 only after branch-only candidate probes and then revalidated by the permanent exact-SHA CI/Harness/ARTEMIS gates; this remains daemon/browser compatibility evidence, not real Android device E2E.
+- DeepSeek Harness support was refreshed on 2026-09-16 to official tag `dsh-v0.1.6-alpha.1` only after exact-SHA CI, real ARTEMIS daemon, byte-for-byte bundle, package/Cordis lifecycle and Chromium Android-panel E2E all passed; this remains daemon/browser compatibility evidence, not real Android device E2E.
 - Browser-facing routes enforce Harness connection trust, loopback-only ARTEMIS transport, response security headers and bounded metadata/body/frame policies.
 - Host route registration and cleanup are transactional: partial activation rolls back registered routes, normal unload is idempotent, cleanup failures do not mask primary registration failures, and exported Host registration helpers also roll back their own partial direct registration before returning an exhaustive reverse-order disposer.
 - CI failure diagnostics are aggregated/redacted and scan only a bounded log prefix.
@@ -35,8 +35,12 @@
 - Continue privacy/performance review as runtime surfaces evolve, especially response allocation limits, screenshots, retained artifacts and failure diagnostics.
 - Keep supported DeepSeek Harness and ARTEMIS revisions backed by reproducible compatibility evidence.
 - Keep the v1.0.0 MIT decision, repository `LICENSE` and package license metadata consistent in future releases.
-- Keep model-image handoff gated until DeepSeek Harness exposes a supported public Session-owned image handoff for vision-capable models.
+- Harness `dsh-v0.1.6-alpha.1` now persists MCP image result blocks as durable model attachments when the active model supports images, but ARTEMIS screenshot state still returns a local `file://` JPEG reference rather than an MCP image block. Keep direct ARTEMIS model-image handoff gated until that upstream result becomes an MCP image or Harness exposes a general assistant-side image handoff seam.
 - Keep broader device controls gated until ARTEMIS exposes a narrow inspected upstream contract; do not substitute generic ADB/shell access.
+
+## v1.0.1 compatibility decision
+
+v1.0.1 keeps the v1.0.0 runtime contract unchanged while moving the reviewed Harness compatibility pin to official tag `dsh-v0.1.6-alpha.1`. ACP session-scoped `mcpServers` are now available upstream for ACP/headless clients, but dsh-artemis Web installation continues to require explicit Cordis/profile configuration because no public reversible Web-profile mutation seam is available.
 
 ## v1.0.0 release decision
 
