@@ -19,6 +19,15 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           persist-credentials: true
+      - name: Repair temporary release helper syntax
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/temp-release-v1.0.1.mjs')
+          lines = path.read_text().splitlines()
+          lines[110] = "const phase7Addition = phase7Marker + '\\n- [x] PR #119: official DeepSeek Harness `dsh-v0.1.6-alpha.1` pin passes repository CI, real ARTEMIS daemon compatibility, byte-identical client generation, package/Cordis remove/reinstall and Chromium Android-panel E2E without runtime changes.'"
+          path.write_text('\n'.join(lines) + '\n')
+          PY
       - name: Apply v1.0.1 release metadata and docs
         run: node scripts/temp-release-v1.0.1.mjs
       - name: Commit release prep
