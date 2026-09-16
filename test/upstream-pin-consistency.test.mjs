@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-const HARNESS_SHA = '0d1f50007f9bca3f52b06e1c3074fa14d5fb0720'
+const HARNESS_SHA = '0a15e36e7f82b6ed45af6fa9759f29b40dcd965d'
 const ARTEMIS_SHA = '371aa6df56880643da57b30da936e9812fb0ec66'
 
 async function text(path) {

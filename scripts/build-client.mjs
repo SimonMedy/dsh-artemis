@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
-const EXPECTED_HARNESS_SHA = '0d1f50007f9bca3f52b06e1c3074fa14d5fb0720'
+const EXPECTED_HARNESS_SHA = '0a15e36e7f82b6ed45af6fa9759f29b40dcd965d'
 const EXPECTED_PACKAGE_MANAGER = 'pnpm@11.7.0'
 const EXPECTED_TSDOWN_RANGE = '^0.22.2'
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
