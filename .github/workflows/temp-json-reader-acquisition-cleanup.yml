@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Patch JSON reader acquisition cleanup
+      - name: Normalize JSON reader cleanup formatting
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -49,7 +49,15 @@ jobs:
             return source.replace(oldText, newText)
           }
 
-          const guard = `let reader
+          const malformed = `  let reader
+          try {
+            reader = response.body.getReader()
+          } catch (error) {
+            await cancelBodyQuietly(response.body)
+            throw error
+          }`.split('\n').map((line, index) => index === 0 ? line : line.slice(8)).join('\n')
+
+          const formatted = `  let reader
           try {
             reader = response.body.getReader()
           } catch (error) {
@@ -58,77 +66,21 @@ jobs:
           }`
 
           let http = await readFile('src/host/artemis-http.mjs')
-          http = replaceExact(
-            http,
-            'const reader = response.body.getReader()',
-            guard,
-            'Host JSON reader acquisition',
-          )
+          http = replaceExact(http, malformed, formatted, 'Host JSON acquisition formatting')
 
           let evidence = await readFile('src/host/artemis-evidence.mjs')
-          evidence = replaceExact(
-            evidence,
-            'const reader = response.body.getReader()',
-            guard,
-            'evidence JSON reader acquisition',
-          )
+          evidence = replaceExact(evidence, malformed, formatted, 'evidence JSON acquisition formatting)
 
           let httpTest = await readFile('test/artemis-http-json-stream.test.mjs')
-          const httpMarker = "test('Host JSON reader acquisition failure cancels the unread body and preserves the original error'"
-          if (httpTest.includes(httpMarker)) throw new Error('Host acquisition regression already exists')
-          httpTest += `
-
-          test('Host JSON reader acquisition failure cancels the unread body and preserves the original error', async () => {
-            const readerFailure = new Error('reader acquisition failed')
-            let cancelled = false
-            const client = new ArtemisHttpClient({
-              fetchImpl: async () => ({
-                ok: true,
-                status: 200,
-                headers: headers(),
-                body: {
-                  getReader() { throw readerFailure },
-                  cancel() {
-                    cancelled = true
-                    return Promise.reject(new Error('cancel failed'))
-                  },
-                },
-              }),
-            })
-
-            await assert.rejects(client.health(), (error) => error === readerFailure)
-            assert.equal(cancelled, true)
-          })
-          `
-
+          httpTest = httpTest.replace(
+            "\n\n\ntest('Host JSON reader acquisition failure",
+            "\n\ntest('Host JSON reader acquisition failure",
+          )
           let evidenceTest = await readFile('test/artemis-evidence-json-stream.test.mjs')
-          const evidenceMarker = "test('evidence JSON reader acquisition failure cancels the unread body and preserves the original error'"
-          if (evidenceTest.includes(evidenceMarker)) throw new Error('evidence acquisition regression already exists')
-          evidenceTest += `
-
-          test('evidence JSON reader acquisition failure cancels the unread body and preserves the original error', async () => {
-            const readerFailure = new Error('reader acquisition failed')
-            let cancelled = false
-            const response = {
-              ok: true,
-              status: 200,
-              headers: headers(),
-              body: {
-                getReader() { throw readerFailure },
-                cancel() {
-                  cancelled = true
-                  throw new Error('cancel failed')
-                },
-              },
-            }
-
-            await assert.rejects(
-              getTaskStatus(evidenceClientWithResponse(response)),
-              (error) => error === readerFailure,
-            )
-            assert.equal(cancelled, true)
-          })
-          `
+          evidenceTest = evidenceTest.replace(
+            "\n\n\ntest('evidence JSON reader acquisition failure",
+            "\n\ntest('evidence JSON reader acquisition failure",
+          )
 
           const files = [
             ['src/host/artemis-http.mjs', http],
@@ -154,7 +106,7 @@ jobs:
           const commit = await request(`/repos/${process.env.REPO}/git/commits`, {
             method: 'POST',
             body: JSON.stringify({
-              message: 'fix: clean up JSON reader acquisition failures',
+              message: 'style: normalize JSON reader cleanup formatting',
               tree: tree.sha,
               parents: [process.env.BASE_SHA],
             }),
