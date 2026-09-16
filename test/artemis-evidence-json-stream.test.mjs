@@ -173,3 +173,27 @@ test('evidence metadata rejection cancels the response body before reader acquis
   )
   assert.equal(oversizedCancelled, true)
 })
+
+
+test('evidence JSON reader acquisition failure cancels the unread body and preserves the original error', async () => {
+  const readerFailure = new Error('reader acquisition failed')
+  let cancelled = false
+  const response = {
+    ok: true,
+    status: 200,
+    headers: headers(),
+    body: {
+      getReader() { throw readerFailure },
+      cancel() {
+        cancelled = true
+        throw new Error('cancel failed')
+      },
+    },
+  }
+
+  await assert.rejects(
+    getTaskStatus(evidenceClientWithResponse(response)),
+    (error) => error === readerFailure,
+  )
+  assert.equal(cancelled, true)
+})

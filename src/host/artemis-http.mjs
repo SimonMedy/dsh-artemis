@@ -100,7 +100,13 @@ async function readJsonWithinLimit(response, endpoint, maxBytes) {
     }
   }
   if (!response.body) throw new ArtemisProtocolError(`${endpoint} returned an empty response body`)
-  const reader = response.body.getReader()
+  let reader
+try {
+  reader = response.body.getReader()
+} catch (error) {
+  await cancelBodyQuietly(response.body)
+  throw error
+}
   const chunks = []
   let size = 0
   try {
