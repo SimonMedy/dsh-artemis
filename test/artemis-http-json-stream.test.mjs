@@ -141,3 +141,26 @@ test('Host JSON pre-reader rejections cancel response bodies without masking pri
     assert.equal(cancelled, true)
   }
 })
+
+
+test('Host JSON reader acquisition failure cancels the unread body and preserves the original error', async () => {
+  const readerFailure = new Error('reader acquisition failed')
+  let cancelled = false
+  const client = new ArtemisHttpClient({
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      headers: headers(),
+      body: {
+        getReader() { throw readerFailure },
+        cancel() {
+          cancelled = true
+          return Promise.reject(new Error('cancel failed'))
+        },
+      },
+    }),
+  })
+
+  await assert.rejects(client.health(), (error) => error === readerFailure)
+  assert.equal(cancelled, true)
+})
