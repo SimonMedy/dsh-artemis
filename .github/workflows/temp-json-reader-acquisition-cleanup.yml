@@ -1,4 +1,4 @@
-name: Temporary JSON reader acquisition cleanup
+name: Temporary JSON reader formatting fix
 
 on:
   push:
@@ -15,110 +15,33 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Normalize JSON reader cleanup formatting
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          BRANCH: ${{ github.ref_name }}
-          BASE_SHA: ${{ github.sha }}
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - name: Fix formatting
         run: |
-          node <<'NODE'
-          const api = 'https://api.github.com'
-          const headers = {
-            accept: 'application/vnd.github+json',
-            authorization: `Bearer ${process.env.GH_TOKEN}`,
-            'content-type': 'application/json',
-            'x-github-api-version': '2026-03-10',
-          }
-
-          async function request(path, options = {}) {
-            const response = await fetch(`${api}${path}`, { headers, ...options })
-            const text = await response.text()
-            if (!response.ok) throw new Error(`${options.method ?? 'GET'} ${path}: ${response.status} ${text}`)
-            return text ? JSON.parse(text) : null
-          }
-
-          async function readFile(path) {
-            const file = await request(`/repos/${process.env.REPO}/contents/${path}?ref=${encodeURIComponent(process.env.BRANCH)}`)
-            return Buffer.from(file.content, 'base64').toString('utf8')
-          }
-
-          function replaceExact(source, oldText, newText, label) {
-            const count = source.split(oldText).length - 1
-            if (count !== 1) throw new Error(`${label}: expected 1 match, found ${count}`)
-            return source.replace(oldText, newText)
-          }
-
-          const malformed = `  let reader
+          python - <<'PY'
+          from pathlib import Path
+          old = '''  let reader
           try {
             reader = response.body.getReader()
           } catch (error) {
             await cancelBodyQuietly(response.body)
             throw error
-          }`.split('\n').map((line, index) => index === 0 ? line : line.slice(8)).join('\n')
-
-          const formatted = `  let reader
-          try {
-            reader = response.body.getReader()
-          } catch (error) {
-            await cancelBodyQuietly(response.body)
-            throw error
-          }`
-
-          let http = await readFile('src/host/artemis-http.mjs')
-          http = replaceExact(http, malformed, formatted, 'Host JSON acquisition formatting')
-
-          let evidence = await readFile('src/host/artemis-evidence.mjs')
-          evidence = replaceExact(evidence, malformed, formatted, 'evidence JSON acquisition formatting)
-
-          let httpTest = await readFile('test/artemis-http-json-stream.test.mjs')
-          httpTest = httpTest.replace(
-            "\n\n\ntest('Host JSON reader acquisition failure",
-            "\n\ntest('Host JSON reader acquisition failure",
-          )
-          let evidenceTest = await readFile('test/artemis-evidence-json-stream.test.mjs')
-          evidenceTest = evidenceTest.replace(
-            "\n\n\ntest('evidence JSON reader acquisition failure",
-            "\n\ntest('evidence JSON reader acquisition failure",
-          )
-
-          const files = [
-            ['src/host/artemis-http.mjs', http],
-            ['src/host/artemis-evidence.mjs', evidence],
-            ['test/artemis-http-json-stream.test.mjs', httpTest],
-            ['test/artemis-evidence-json-stream.test.mjs', evidenceTest],
-          ]
-
-          const baseCommit = await request(`/repos/${process.env.REPO}/git/commits/${process.env.BASE_SHA}`)
-          const treeEntries = []
-          for (const [path, content] of files) {
-            const blob = await request(`/repos/${process.env.REPO}/git/blobs`, {
-              method: 'POST',
-              body: JSON.stringify({ content, encoding: 'utf-8' }),
-            })
-            treeEntries.push({ path, mode: '100644', type: 'blob', sha: blob.sha })
-          }
-
-          const tree = await request(`/repos/${process.env.REPO}/git/trees`, {
-            method: 'POST',
-            body: JSON.stringify({ base_tree: baseCommit.tree.sha, tree: treeEntries }),
-          })
-          const commit = await request(`/repos/${process.env.REPO}/git/commits`, {
-            method: 'POST',
-            body: JSON.stringify({
-              message: 'style: normalize JSON reader cleanup formatting',
-              tree: tree.sha,
-              parents: [process.env.BASE_SHA],
-            }),
-          })
-
-          const refPath = process.env.BRANCH.split('/').map(encodeURIComponent).join('/')
-          const current = await request(`/repos/${process.env.REPO}/git/ref/heads/${refPath}`)
-          if (current.object.sha !== process.env.BASE_SHA) {
-            throw new Error(`branch moved: expected ${process.env.BASE_SHA}, found ${current.object.sha}`)
-          }
-          await request(`/repos/${process.env.REPO}/git/refs/heads/${refPath}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ sha: commit.sha, force: false }),
-          })
-          NODE
+          }'''.replace('\n          ', '\n')
+          new = '''  let reader
+            try {
+              reader = response.body.getReader()
+            } catch (error) {
+              await cancelBodyQuietly(response.body)
+              throw error
+            }'''.replace('\n          ', '\n  ')
+          for name in ('src/host/artemis-http.mjs', 'src/host/artemis-evidence.mjs'):
+              p = Path(name)
+              text = p.read_text()
+              assert text.count(old) == 1, name
+              p.write_text(text.replace(old, new))
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/host/artemis-http.mjs src/host/artemis-evidence.mjs
+          git commit -m "style: normalize JSON reader cleanup formatting"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
