@@ -25,6 +25,7 @@
 - Host request/snapshot timeout configuration is bounded to 2,147,483,647 ms so Node timer overflow cannot silently shorten a request to 1 ms; evidence adapters fall back to their 2 s timeout when a custom client exceeds that range.
 - Browser live retry helpers apply the same timer ceiling to caller-provided base/max delays, while the product defaults remain 750/1,500/3,000 ms and finite; the checked bundle remains pinned-Harness reproducible.
 - Harness MCP Cordis rendering quotes both environment keys and values as JSON-compatible YAML scalars, so hostile/custom env-key text cannot alter the emitted configuration structure.
+- Harness MCP Cordis startup-error policy fails closed on type mismatches: `failOnStartupError` must be a real boolean, so custom rows cannot silently invert policy through JavaScript truthiness.
 
 ## Remaining release gates
 
