@@ -5,8 +5,14 @@ on:
     paths:
       - "src/host/**"
       - "src/shared/**"
+      - "src/integration/artemis-mcp-config.mjs"
+      - "src/integration/artemis-acp-mcp-config.mjs"
+      - "bin/dsh-artemis-mcp-config.mjs"
       - "scripts/smoke-real-artemis-daemon.mjs"
+      - "scripts/smoke-real-artemis-acp-mcp.mjs"
       - "scripts/summarize-artemis-log.mjs"
+      - "test/artemis-mcp-config*.test.mjs"
+      - "test/artemis-acp-mcp-config.test.mjs"
       - "test/artemis-log-summary.test.mjs"
       - "docs/upstreams.md"
       - ".github/workflows/artemis-compat.yml"
@@ -18,7 +24,6 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
 env:
   ARTEMIS_SHA: 371aa6df56880643da57b30da936e9812fb0ec66
   UV_VERSION: 0.7.20
@@ -54,6 +59,13 @@ jobs:
       - name: Install pinned ARTEMIS runtime from lockfile
         working-directory: artemis
         run: uv sync --locked --no-dev
+      - name: Exercise session-scoped ACP MCP launch from a foreign cwd
+        working-directory: dsh-artemis
+        env:
+          ARTEMIS_ROOT: ${{ github.workspace }}/artemis
+          ARTEMIS_PYTHON: ${{ github.workspace }}/artemis/.venv/bin/python
+          ARTEMIS_ACP_PROBE_CWD: ${{ runner.temp }}/artemis-acp-session-cwd
+        run: node scripts/smoke-real-artemis-acp-mcp.mjs
       - name: Start pinned real ARTEMIS daemon
         working-directory: artemis
         run: |

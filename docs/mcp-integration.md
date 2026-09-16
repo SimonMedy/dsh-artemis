@@ -72,7 +72,21 @@ or with `ARTEMIS_PYTHON`.
 
 `--python` / `ARTEMIS_PYTHON` overrides `.venv` discovery and must point to an existing executable path. If neither an explicit interpreter nor the platform-specific ARTEMIS `.venv` interpreter exists, the helper fails closed rather than using Node or guessing a system Python.
 
-The helper validates `pyproject.toml`, `mcp_server/__main__.py` and `mcp_server/rules.md`, resolves the interpreter under the rules above, and writes exactly one Cordis row to stdout. It does **not** scan arbitrary home directories, execute discovery shell commands, edit DeepSeek Harness profiles or modify ARTEMIS. Profile mutation will only be added after a DeepSeek Harness profile-patch workflow is proven safe and reversible.
+The helper validates `pyproject.toml`, `mcp_server/__main__.py` and `mcp_server/rules.md`, resolves the interpreter under the rules above, and writes configuration to stdout. The default `cordis` format remains exactly one Cordis row. It does **not** scan arbitrary home directories, execute discovery shell commands, edit DeepSeek Harness profiles or modify ARTEMIS. Profile mutation will only be added after a DeepSeek Harness profile-patch workflow is proven safe and reversible.
+
+### ACP session-scoped MCP format
+
+Harness `dsh-v0.1.6-alpha.1` accepts MCP declarations on ACP `session/new` and `session/resume`. Generate a directly usable JSON fragment with:
+
+```bash
+dsh-artemis-mcp-config \
+  --artemis-root /absolute/path/to/artemis \
+  --format acp-json
+```
+
+The output has the form `{ "mcpServers": [...] }` and contains only the validated absolute Python command, `["-m", "mcp_server"]` arguments and the bounded ARTEMIS environment entries. It intentionally contains no `cwd`: ACP owns the Session workspace and applies it as the stdio MCP working directory. `PYTHONPATH=<artemis-root>` anchors module resolution to the validated ARTEMIS checkout so the server remains launchable from an unrelated Session workspace. The permanent ARTEMIS compatibility workflow exercises this exact foreign-cwd launch against the real pinned ARTEMIS installation.
+
+This format is configuration generation only. It does not open an ACP connection, create/resume a Session, mutate a Web profile, or broaden browser privileges. Cordis remains the default output for the Web/profile workflow.
 
 ## Setup/status UX contract
 
