@@ -31,6 +31,33 @@ function evidenceClient(reader, { maxJsonBytes = 1_048_576 } = {}) {
   })
 }
 
+test('evidence fallback ignores timer delays that Node would overflow', async () => {
+  let observedSignal
+  let reads = 0
+  const payload = new TextEncoder().encode(JSON.stringify({ status: 'idle' }))
+  const client = {
+    baseUrl: new URL('http://127.0.0.1:8000'),
+    maxJsonBytes: 1_048_576,
+    timeoutMs: 2_147_483_648,
+    fetchImpl: async (_url, options) => {
+      observedSignal = options.signal
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      assert.equal(observedSignal.aborted, false)
+      return responseWithReader({
+        async read() {
+          reads += 1
+          return reads === 1 ? { done: false, value: payload } : { done: true }
+        },
+        releaseLock() {},
+      }, String(payload.byteLength))
+    },
+  }
+
+  const status = await getTaskStatus(client)
+  assert.equal(status.status, 'idle')
+  assert.equal(observedSignal.aborted, false)
+})
+
 test('evidence fallback ignores unsafe custom JSON byte limits', async () => {
   let cancelled = false
   let readerAcquired = false

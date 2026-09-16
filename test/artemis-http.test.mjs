@@ -35,6 +35,19 @@ test('base URL defaults and rejects non-loopback hosts', () => {
   assert.throws(() => resolveArtemisBaseUrl('http://example.com:8000'), (error) => error.code === 'non-loopback-base-url')
 })
 
+test('timeouts stay within the Node timer delay range', () => {
+  const maxTimerDelayMs = 2_147_483_647
+  assert.doesNotThrow(() => new ArtemisHttpClient({ timeoutMs: maxTimerDelayMs, snapshotTimeoutMs: maxTimerDelayMs }))
+  assert.throws(
+    () => new ArtemisHttpClient({ timeoutMs: maxTimerDelayMs + 1 }),
+    /timeoutMs must be a positive integer no greater than 2147483647/,
+  )
+  assert.throws(
+    () => new ArtemisHttpClient({ snapshotTimeoutMs: maxTimerDelayMs + 1 }),
+    /snapshotTimeoutMs must be a positive integer no greater than 2147483647/,
+  )
+})
+
 test('byte limits require safe integer arithmetic headroom', () => {
   assert.throws(
     () => new ArtemisHttpClient({ maxJsonBytes: Number.MAX_SAFE_INTEGER + 1 }),
