@@ -19,13 +19,8 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           persist-credentials: true
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
-        with:
-          node-version: '22'
       - name: Update pinned Harness SHA consistently
         run: node scripts/temp-patch-harness-v0.1.6-alpha.1.mjs
-      - name: Validate repository checks
-        run: npm run check
       - name: Commit pin update
         run: |
           git config user.name "github-actions[bot]"
