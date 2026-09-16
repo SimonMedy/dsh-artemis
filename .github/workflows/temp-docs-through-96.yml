@@ -1,0 +1,55 @@
+name: Temporary docs refresh through PR 96
+
+on:
+  push:
+    branches:
+      - gpt/phase-7-docs-through-96
+    paths:
+      - .github/workflows/temp-docs-through-96.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: true
+      - name: Refresh Phase 7 docs
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          roadmap = Path("docs/roadmap.md")
+          text = roadmap.read_text()
+          pairs = [
+              ("hardening merged through PR #94", "hardening merged through PR #96"),
+              ("**Status: ONGOING — hardening merged through PR #94**", "**Status: ONGOING — hardening merged through PR #96**"),
+          ]
+          for old, new in pairs:
+              if text.count(old) != 1:
+                  raise SystemExit(f"roadmap count {text.count(old)} for {old!r}")
+              text = text.replace(old, new)
+
+          marker = "- [x] PR #94: Host and evidence bounded JSON readers cancel unread response bodies when reader acquisition fails, preserving the original acquisition error even if body cancellation fails."
+          added = marker + "\n- [x] PR #96: Host and evidence bounded JSON readers cancel acquired readers on in-loop read, chunk-validation and response-size failures, preserve the exact primary error when cancellation fails, and still release reader locks best-effort."
+          if text.count(marker) != 1:
+              raise SystemExit(f"roadmap PR94 marker count {text.count(marker)}")
+          roadmap.write_text(text.replace(marker, added))
+
+          release = Path("docs/release-readiness.md")
+          text = release.read_text()
+          marker = "- Host and evidence bounded JSON readers cancel unread response bodies when reader acquisition fails, while best-effort cancellation failures never replace the original acquisition error."
+          added = marker + "\n- After reader acquisition, Host and evidence bounded JSON streams cancel the acquired reader on read, chunk-validation or response-size failures, preserve the exact primary error if cancellation fails, and release the reader lock best-effort."
+          if text.count(marker) != 1:
+              raise SystemExit(f"release marker count {text.count(marker)}")
+          release.write_text(text.replace(marker, added))
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/roadmap.md docs/release-readiness.md
+          git commit -m "docs: refresh hardening evidence through PR 96"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
