@@ -21,6 +21,7 @@ let test = readFileSync(testPath, 'utf8')
 const marker = "test('renders paths and values as quoted JSON-compatible YAML scalars', async () => {"
 if (test.split(marker).length !== 2) throw new Error('expected one renderer test marker')
 const addition = `test('quotes Cordis environment keys so YAML metacharacters cannot inject entries', () => {
+  const hostileKey = 'BAD_KEY:\\n      injected'
   const yaml = renderHarnessMcpCordisRow({
     id: 'mcp-artemis',
     name: '@deepseek-ai/dsh-mcp-client',
@@ -31,15 +32,15 @@ const addition = `test('quotes Cordis environment keys so YAML metacharacters ca
       args: ['-m', 'mcp_server'],
       cwd: '/safe/artemis',
       env: {
-        'SAFE_KEY': 'safe',
-        'BAD_KEY:\\n      injected': 'value',
+        SAFE_KEY: 'safe',
+        [hostileKey]: 'value',
       },
       failOnStartupError: false,
     },
   })
 
   assert.match(yaml, /"SAFE_KEY": "safe"/)
-  assert.ok(yaml.includes(`${JSON.stringify('BAD_KEY:\\n      injected')}: "value"`))
+  assert.ok(yaml.includes(JSON.stringify(hostileKey) + ': "value"'))
   assert.equal(yaml.includes('\\n      injected: "value"'), false)
 })
 
