@@ -18,7 +18,7 @@ Last updated: 2026-09-16
 | 4 — tasks, traces & visual QA | **PARTIAL** | Bounded task evidence PR #19, latest-trace drill-down PR #21 and ephemeral visual QA checkpoint PR #22 merged; replay and model-image handoff remain gated |
 | 5 — installation & agent experience | **PARTIAL** | MCP config + rules skill + truthful bounded setup/status UX are merged and reversible plugin lifecycle is proven; automatic profile mutation and vision affordances remain gated |
 | 6 — autonomous mobile computer-use | **PLANNED** | Build bounded code→build→ARTEMIS→observe→verify→fix workflows |
-| 7 — compatibility & polish | **ONGOING** | Security, privacy, response-boundary, lifecycle, CI/resource cleanup and release-readiness hardening merged through PR #116; current Harness/ARTEMIS pins were re-probed and revalidated on 2026-09-15, while real device/emulator smoke, licensing decision and remaining release polish stay open |
+| 7 — compatibility & polish | **ONGOING** | Hardening is merged through PR #116; v1.0.0 has an explicit MIT/tagged-GitHub stable scope, while real device/emulator smoke remains future dedicated-infrastructure validation and upstream-gated capabilities stay outside the stable contract |
 
 ## Non-negotiable foundations
 
@@ -153,13 +153,14 @@ Delivered:
 - [x] PR #112: Harness MCP Cordis rendering now requires `config.failOnStartupError` to be an actual boolean, rejecting truthiness coercion such as `"false"`, numbers, null or undefined while preserving explicit true/false policy rendering.
 - [x] PR #114: Harness MCP Cordis rendering now validates the pinned stdio schema shape for transport, serverName, command, args, env and cwd, preserves the upstream defaults for omitted args/env/cwd, and rejects malformed custom rows instead of coercing them.
 - [x] PR #116: ARTEMIS rules-skill byte limits now require positive safe integers at both the loader and plugin-config boundaries, preserving the 512 KiB default while rejecting precision-loss limits outside JavaScript’s exact integer domain.
+- [x] v1.0.0 release decision: MIT license, version `1.0.0`, tagged GitHub/Git-spec distribution, npm registry publication disabled, and known upstream/device-E2E limitations documented.
 - [x] Runtime-affecting PR heads continue to pass pinned DeepSeek Harness package/Cordis/Web/Chromium gates; ARTEMIS-facing changes also pass the real daemon compatibility gate.
 
 Remaining Phase 7 gates:
 - [ ] Add a real ARTEMIS + supported Android emulator/device smoke when dedicated infrastructure is available. Pinned ARTEMIS itself keeps device/E2E suites off ordinary GitHub-hosted runners, so the daemon smoke must not be represented as device E2E.
 - [ ] Continue release/privacy/performance review, especially response allocation bounds, screenshot retention and failure artifacts as features evolve.
 - [ ] Keep supported DeepSeek Harness/ARTEMIS revisions backed by reproducible compatibility evidence.
-- [ ] Keep release/versioning independent of unpublished local state; the package remains private/`0.0.0` until an explicit release decision is made.
+- [ ] Keep future release/versioning/licensing/distribution changes explicit and reviewable; v1.0.0 uses MIT and tagged GitHub distribution while npm registry publication stays disabled.
 
 ## Current critical path
 

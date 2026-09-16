@@ -1,6 +1,6 @@
 # Release readiness
 
-`dsh-artemis` is intentionally unreleased. The repository must keep `package.json` at `private: true` and version `0.0.0` until an explicit release decision changes that policy in a dedicated reviewed pull request.
+`dsh-artemis` v1.0.0 is the first stable GitHub-release scope. The source is MIT licensed and package metadata uses version `1.0.0`; npm registry publication remains intentionally disabled with `private: true`, so the supported v1.0.0 distribution path is the tagged GitHub release / Git spec.
 
 ## What is already proven
 
@@ -29,15 +29,15 @@
 - Harness MCP Cordis stdio rows are validated against the pinned Harness schema before rendering: transport/serverName/command/args/env/cwd types are explicit, omitted args/env/cwd retain the upstream defaults, and malformed iterable/object inputs are not coerced.
 - Rules-skill resource limits stay in the safe-integer domain at both exported loader and plugin configuration boundaries; the product default remains 512 KiB and overrange custom limits fail closed.
 
-## Remaining release gates
+## Known validation gaps and future gates
 
-- Run a supported real Android emulator/device smoke on dedicated infrastructure. The existing real-daemon smoke must not be described as device E2E.
+- Real Android emulator/device smoke remains a dedicated-infrastructure validation target and is not claimed as v1.0.0 evidence. The existing real-daemon smoke must not be described as device E2E.
 - Continue privacy/performance review as runtime surfaces evolve, especially response allocation limits, screenshots, retained artifacts and failure diagnostics.
 - Keep supported DeepSeek Harness and ARTEMIS revisions backed by reproducible compatibility evidence.
-- Make an explicit project licensing decision before public package release, then keep the repository license file and package metadata consistent with that decision.
+- Keep the v1.0.0 MIT decision, repository `LICENSE` and package license metadata consistent in future releases.
 - Keep model-image handoff gated until DeepSeek Harness exposes a supported public Session-owned image handoff for vision-capable models.
 - Keep broader device controls gated until ARTEMIS exposes a narrow inspected upstream contract; do not substitute generic ADB/shell access.
 
-## Release decision checklist
+## v1.0.0 release decision
 
-A future release PR must deliberately remove the private/unreleased guard and, in the same review, choose the first real version, make and document the project licensing decision, keep repository/package license metadata consistent, confirm package metadata and distribution contents, document the supported upstream revisions, record the device/infrastructure evidence available at release time, and rerun all applicable CI/Harness/ARTEMIS gates on the final release candidate SHA.
+The first stable release deliberately selects version `1.0.0`, MIT licensing and tagged GitHub/Git-spec distribution while keeping npm registry publication disabled. Before creating tag `v1.0.0`, the final release-candidate SHA must pass package-content checks plus all applicable CI, Harness compatibility and ARTEMIS compatibility gates. Release notes must state the available evidence and the real-device/emulator E2E gap explicitly.

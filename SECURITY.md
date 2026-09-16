@@ -2,6 +2,13 @@
 
 `dsh-artemis` bridges a browser UI, a local Harness host process, ARTEMIS and Android/ADB. Treat that boundary as privileged: a bug in the plugin can execute device actions or expose local runtime data.
 
+## Supported versions
+
+| Version | Supported |
+| --- | --- |
+| 1.0.x | ✅ |
+| < 1.0 | ❌ |
+
 ## Reporting vulnerabilities
 
 Do not publish exploitable security issues in a public issue before a fix is available. Use GitHub's private vulnerability reporting / Security Advisory flow when enabled for this repository. If private reporting is unavailable, contact the repository owner privately and provide the smallest reproducible description possible.
