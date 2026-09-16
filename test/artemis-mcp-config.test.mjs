@@ -172,13 +172,37 @@ test('builds the Harness MCP row using the same stdio process contract as ARTEMI
   assert.equal(row.config.failOnStartupError, false)
 })
 
+test('quotes Cordis environment keys so YAML metacharacters cannot inject entries', () => {
+  const hostileKey = 'BAD_KEY:\n      injected'
+  const yaml = renderHarnessMcpCordisRow({
+    id: 'mcp-artemis',
+    name: '@deepseek-ai/dsh-mcp-client',
+    config: {
+      serverName: 'artemis',
+      transport: 'stdio',
+      command: '/safe/python',
+      args: ['-m', 'mcp_server'],
+      cwd: '/safe/artemis',
+      env: {
+        SAFE_KEY: 'safe',
+        [hostileKey]: 'value',
+      },
+      failOnStartupError: false,
+    },
+  })
+
+  assert.match(yaml, /"SAFE_KEY": "safe"/)
+  assert.ok(yaml.includes(JSON.stringify(hostileKey) + ': "value"'))
+  assert.equal(yaml.includes('\n      injected: "value"'), false)
+})
+
 test('renders paths and values as quoted JSON-compatible YAML scalars', async () => {
   const root = await fakeArtemisRoot({ withPosixVenv: true })
   const row = await buildHarnessMcpRow({ artemisRoot: root, platform: 'linux' })
   const yaml = renderHarnessMcpCordisRow(row)
   assert.match(yaml, /name: "@deepseek-ai\/dsh-mcp-client"/)
   assert.match(yaml, /args: \["-m","mcp_server"\]/)
-  assert.match(yaml, /PYTHONUNBUFFERED: "1"/)
-  assert.match(yaml, /ARTEMIS_DESKTOP_NOTIFY: "true"/)
+  assert.match(yaml, /"PYTHONUNBUFFERED": "1"/)
+  assert.match(yaml, /"ARTEMIS_DESKTOP_NOTIFY": "true"/)
   assert.ok(yaml.includes(JSON.stringify(root)))
 })
