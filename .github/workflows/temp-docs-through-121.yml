@@ -1,0 +1,30 @@
+name: Temporary Phase 5 docs through PR 121
+
+on:
+  push:
+    branches:
+      - gpt/phase-5-docs-through-121
+    paths:
+      - .github/workflows/temp-docs-through-121.yml
+      - scripts/temp-patch-docs-through-121.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: true
+      - name: Refresh Phase 5 docs through PR 121
+        run: node scripts/temp-patch-docs-through-121.mjs
+      - name: Commit documentation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/roadmap.md docs/release-readiness.md
+          git commit -m "docs: record ACP session MCP delivery"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
