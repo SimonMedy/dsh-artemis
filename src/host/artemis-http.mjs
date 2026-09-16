@@ -7,6 +7,10 @@ const DEFAULT_SNAPSHOT_TIMEOUT_MS = 4_000
 const DEFAULT_MAX_JSON_BYTES = 1_048_576
 const DEFAULT_MAX_FRAME_BYTES = 8_388_608
 const MAX_MULTIPART_HEADER_BYTES = 16_384
+const MAX_MULTIPART_BOUNDARY_CHARS = 70
+// A JavaScript UTF-16 code unit encodes to at most three UTF-8 bytes. Multipart buffering also retains `--`, CRLF separators and the header terminator.
+const MAX_MULTIPART_BUFFER_OVERHEAD_BYTES = MAX_MULTIPART_HEADER_BYTES + 2 + (MAX_MULTIPART_BOUNDARY_CHARS * 3) + 2 + 4 + 2
+const MAX_CONFIGURED_FRAME_BYTES = Number.MAX_SAFE_INTEGER - MAX_MULTIPART_BUFFER_OVERHEAD_BYTES
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', '[::1]'])
 const PNG_SIGNATURE = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 
@@ -162,7 +166,7 @@ function parseMultipartBoundary(contentType) {
   }
   let boundary = entry.slice(entry.indexOf('=') + 1).trim()
   if (boundary.startsWith('"') && boundary.endsWith('"')) boundary = boundary.slice(1, -1)
-  if (!boundary || boundary.length > 70 || /[\r\n]/.test(boundary)) {
+  if (!boundary || boundary.length > MAX_MULTIPART_BOUNDARY_CHARS || /[\r\n]/.test(boundary)) {
     throw new ArtemisProtocolError('/api/stream/device-live returned an invalid multipart boundary', { code: 'invalid-multipart' })
   }
   return boundary
@@ -303,8 +307,10 @@ export class ArtemisHttpClient {
     if (typeof fetchImpl !== 'function') throw new TypeError('fetchImpl must be a function')
     if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) throw new TypeError('timeoutMs must be a positive integer')
     if (!Number.isInteger(snapshotTimeoutMs) || snapshotTimeoutMs <= 0) throw new TypeError('snapshotTimeoutMs must be a positive integer')
-    if (!Number.isInteger(maxJsonBytes) || maxJsonBytes <= 0) throw new TypeError('maxJsonBytes must be a positive integer')
-    if (!Number.isInteger(maxFrameBytes) || maxFrameBytes <= 0) throw new TypeError('maxFrameBytes must be a positive integer')
+    if (!Number.isSafeInteger(maxJsonBytes) || maxJsonBytes <= 0) throw new TypeError('maxJsonBytes must be a positive safe integer')
+    if (!Number.isSafeInteger(maxFrameBytes) || maxFrameBytes <= 0 || maxFrameBytes > MAX_CONFIGURED_FRAME_BYTES) {
+      throw new TypeError('maxFrameBytes must be a positive safe integer with multipart overhead headroom')
+    }
     this.baseUrl = resolveArtemisBaseUrl(baseUrl)
     this.timeoutMs = timeoutMs
     this.snapshotTimeoutMs = snapshotTimeoutMs
