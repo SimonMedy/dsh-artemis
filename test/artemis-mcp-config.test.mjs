@@ -172,6 +172,54 @@ test('builds the Harness MCP row using the same stdio process contract as ARTEMI
   assert.equal(row.config.failOnStartupError, false)
 })
 
+test('validates Cordis stdio config shapes instead of coercing malformed values', () => {
+  const base = {
+    id: 'mcp-artemis',
+    name: '@deepseek-ai/dsh-mcp-client',
+    config: {
+      serverName: 'artemis',
+      transport: 'stdio',
+      command: '/safe/python',
+      args: ['-m', 'mcp_server'],
+      cwd: '/safe/artemis',
+      env: { SAFE_KEY: 'safe' },
+      failOnStartupError: false,
+    },
+  }
+
+  const cases = [
+    [{ transport: 'streamable-http' }, /transport must be 'stdio'/],
+    [{ serverName: 'bad name' }, /serverName must match/],
+    [{ command: 7 }, /command must be a string/],
+    [{ args: 'mcp_server' }, /args must be an array of strings/],
+    [{ args: ['-m', 7] }, /args must be an array of strings/],
+    [{ env: 'SAFE_KEY=safe' }, /env must be an object of string values/],
+    [{ env: ['safe'] }, /env must be an object of string values/],
+    [{ env: { SAFE_KEY: 7 } }, /env must be an object of string values/],
+    [{ cwd: 7 }, /cwd must be a string/],
+  ]
+
+  for (const [override, expected] of cases) {
+    assert.throws(
+      () => renderHarnessMcpCordisRow({ ...base, config: { ...base.config, ...override } }),
+      expected,
+    )
+  }
+
+  const defaults = renderHarnessMcpCordisRow({
+    ...base,
+    config: {
+      serverName: 'artemis',
+      transport: 'stdio',
+      command: '/safe/python',
+      failOnStartupError: false,
+    },
+  })
+  assert.ok(defaults.includes('    args: []'))
+  assert.ok(defaults.includes('    cwd: ""'))
+  assert.ok(defaults.includes('    env:\n    failOnStartupError: false'))
+})
+
 test('rejects non-boolean Cordis startup error flags instead of coercing truthiness', () => {
   const base = {
     id: 'mcp-artemis',
