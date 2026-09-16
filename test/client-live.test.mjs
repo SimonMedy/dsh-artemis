@@ -15,3 +15,23 @@ test('live reconnect delay is bounded and retry budget is finite', () => {
   assert.equal(liveRetryDelay(4, { baseMs: 100, maxMs: 250 }), 250)
   assert.throws(() => liveRetryDelay(0), /positive integer/)
 })
+
+test('live reconnect custom delays stay within the timer range', () => {
+  const maxTimerDelayMs = 2_147_483_647
+  assert.equal(
+    liveRetryDelay(1, { baseMs: maxTimerDelayMs, maxMs: maxTimerDelayMs }),
+    maxTimerDelayMs,
+  )
+  assert.equal(
+    liveRetryDelay(2, { baseMs: maxTimerDelayMs, maxMs: maxTimerDelayMs }),
+    maxTimerDelayMs,
+  )
+  assert.throws(
+    () => liveRetryDelay(1, { baseMs: maxTimerDelayMs + 1, maxMs: maxTimerDelayMs }),
+    /baseMs must be a positive integer no greater than 2147483647/,
+  )
+  assert.throws(
+    () => liveRetryDelay(1, { baseMs: 1, maxMs: maxTimerDelayMs + 1 }),
+    /maxMs must be a positive integer no greater than 2147483647/,
+  )
+})
