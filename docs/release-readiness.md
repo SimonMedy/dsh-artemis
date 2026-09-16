@@ -17,6 +17,7 @@
 - Evidence and trace selection require every upstream `step_number` to be a non-negative safe integer before latest-step selection, preventing malformed session histories from silently falling back to response order or triggering downstream trace requests.
 - Live multipart metadata rejection and reader-acquisition failure cancel unread ARTEMIS response bodies before parsing continues, while cleanup failures never replace the primary protocol or reader error.
 - Host and evidence bounded JSON readers cancel unread response bodies when reader acquisition fails, while best-effort cancellation failures never replace the original acquisition error.
+- After reader acquisition, Host and evidence bounded JSON streams cancel the acquired reader on read, chunk-validation or response-size failures, preserve the exact primary error if cancellation fails, and release the reader lock best-effort.
 
 ## Remaining release gates
 

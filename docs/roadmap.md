@@ -18,7 +18,7 @@ Last updated: 2026-09-16
 | 4 — tasks, traces & visual QA | **PARTIAL** | Bounded task evidence PR #19, latest-trace drill-down PR #21 and ephemeral visual QA checkpoint PR #22 merged; replay and model-image handoff remain gated |
 | 5 — installation & agent experience | **PARTIAL** | MCP config + rules skill + truthful bounded setup/status UX are merged and reversible plugin lifecycle is proven; automatic profile mutation and vision affordances remain gated |
 | 6 — autonomous mobile computer-use | **PLANNED** | Build bounded code→build→ARTEMIS→observe→verify→fix workflows |
-| 7 — compatibility & polish | **ONGOING** | Security, privacy, response-boundary, lifecycle, CI/resource cleanup and release-readiness hardening merged through PR #94; current Harness/ARTEMIS pins were re-probed and revalidated on 2026-09-15, while real device/emulator smoke, licensing decision and remaining release polish stay open |
+| 7 — compatibility & polish | **ONGOING** | Security, privacy, response-boundary, lifecycle, CI/resource cleanup and release-readiness hardening merged through PR #96; current Harness/ARTEMIS pins were re-probed and revalidated on 2026-09-15, while real device/emulator smoke, licensing decision and remaining release polish stay open |
 
 ## Non-negotiable foundations
 
@@ -97,7 +97,7 @@ Remaining gates:
 
 ## Phase 7 — compatibility and polish
 
-**Status: ONGOING — hardening merged through PR #94**
+**Status: ONGOING — hardening merged through PR #96**
 
 Delivered:
 - [x] PR #26: browser response baseline (`no-store`, `nosniff`) applies before route logic/trust rejection.
@@ -142,6 +142,7 @@ Delivered:
 - [x] PR #91: roadmap and release-readiness evidence are refreshed through PR #90.
 - [x] PR #92: rejected live-stream multipart metadata and reader-acquisition failures explicitly cancel unread ARTEMIS response bodies without masking the primary error.
 - [x] PR #94: Host and evidence bounded JSON readers cancel unread response bodies when reader acquisition fails, preserving the original acquisition error even if body cancellation fails.
+- [x] PR #96: Host and evidence bounded JSON readers cancel acquired readers on in-loop read, chunk-validation and response-size failures, preserve the exact primary error when cancellation fails, and still release reader locks best-effort.
 - [x] Runtime-affecting PR heads continue to pass pinned DeepSeek Harness package/Cordis/Web/Chromium gates; ARTEMIS-facing changes also pass the real daemon compatibility gate.
 
 Remaining Phase 7 gates:
