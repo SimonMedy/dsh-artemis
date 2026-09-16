@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 
-function replaceOnce(text, oldText, newText, label) {
+function replaceOnce(text, oldText,newText, label) {
   const count = text.split(oldText).length - 1
   if (count !== 1) throw new Error(`${label}: expected one match, found ${count}`)
   return text.replace(oldText, newText)
@@ -23,7 +23,7 @@ source = replaceOnce(
 source = replaceOnce(
   source,
   "    `    args: ${json(Array.from(config.args ?? []))}`,\n    `    cwd: ${json(config.cwd)}`,\n    '    env:',\n  ]\n  for (const [key, value] of Object.entries(config.env ?? {})) {",
-  "    `    args: ${json(args)}`,\n    `    cwd: ${json(cwd)}`,\n    '    env:',\n  ]\n  for (const [key, value] of Object.entries(env)) {",
+  "    `    args: ${json(args)}`,\n    `     cwd: ${json(cwd)}`,\n    '    env:',\n  ]\n  for (const [key, value] of Object.entries(env)) {",
   'renderer normalized values',
 )
 writeFileSync(sourcePath, source)
@@ -77,7 +77,7 @@ const addition = `test('validates Cordis stdio config shapes instead of coercing
   })
   assert.match(defaults, /args: \[\]/)
   assert.match(defaults, /cwd: ""/)
-  assert.match(defaults, /    env:\n    failOnStartupError: false/)
+  assert.ok(defaults.includes('    env:\\n    failOnStartupError: false'))
 })
 
 `
