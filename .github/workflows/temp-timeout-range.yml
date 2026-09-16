@@ -1,0 +1,31 @@
+name: Temporary timeout range hardening
+
+on:
+  push:
+    branches:
+      - gpt/phase-7-timeout-range
+    paths:
+      - .github/workflows/temp-timeout-range.yml
+      - scripts/temp-patch-timeout-range.mjs
+      - src/shared/timer-delay.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: true
+      - name: Harden timeout ranges
+        run: |
+          node scripts/temp-patch-timeout-range.mjs
+          npm run check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/shared/timer-delay.mjs src/host/artemis-http.mjs src/host/artemis-evidence.mjs test/artemis-http.test.mjs test/artemis-evidence-json-stream.test.mjs
+          git commit -m "fix: bound Host timeout configuration"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
