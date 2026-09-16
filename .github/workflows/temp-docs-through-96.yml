@@ -22,31 +22,25 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-
-          roadmap = Path("docs/roadmap.md")
-          text = roadmap.read_text()
-          pairs = [
-              ("hardening merged through PR #94", "hardening merged through PR #96"),
-              ("**Status: ONGOING — hardening merged through PR #94**", "**Status: ONGOING — hardening merged through PR #96**"),
-          ]
-          for old, new in pairs:
-              if text.count(old) != 1:
-                  raise SystemExit(f"roadmap count {text.count(old)} for {old!r}")
-              text = text.replace(old, new)
-
+          p = Path("docs/roadmap.md")
+          s = p.read_text()
+          old = "hardening merged through PR #94"
+          if s.count(old) != 2:
+              raise SystemExit(f"roadmap status count {s.count(old)}")
+          s = s.replace(old, "hardening merged through PR #96")
           marker = "- [x] PR #94: Host and evidence bounded JSON readers cancel unread response bodies when reader acquisition fails, preserving the original acquisition error even if body cancellation fails."
-          added = marker + "\n- [x] PR #96: Host and evidence bounded JSON readers cancel acquired readers on in-loop read, chunk-validation and response-size failures, preserve the exact primary error when cancellation fails, and still release reader locks best-effort."
-          if text.count(marker) != 1:
-              raise SystemExit(f"roadmap PR94 marker count {text.count(marker)}")
-          roadmap.write_text(text.replace(marker, added))
+          extra = "\n- [x] PR #96: Host and evidence bounded JSON readers cancel acquired readers on in-loop read, chunk-validation and response-size failures, preserve the exact primary error when cancellation fails, and still release reader locks best-effort."
+          if s.count(marker) != 1:
+              raise SystemExit(f"roadmap marker count {s.count(marker)}")
+          p.write_text(s.replace(marker, marker + extra))
 
-          release = Path("docs/release-readiness.md")
-          text = release.read_text()
+          p = Path("docs/release-readiness.md")
+          s = p.read_text()
           marker = "- Host and evidence bounded JSON readers cancel unread response bodies when reader acquisition fails, while best-effort cancellation failures never replace the original acquisition error."
-          added = marker + "\n- After reader acquisition, Host and evidence bounded JSON streams cancel the acquired reader on read, chunk-validation or response-size failures, preserve the exact primary error if cancellation fails, and release the reader lock best-effort."
-          if text.count(marker) != 1:
-              raise SystemExit(f"release marker count {text.count(marker)}")
-          release.write_text(text.replace(marker, added))
+          extra = "\n- After reader acquisition, Host and evidence bounded JSON streams cancel the acquired reader on read, chunk-validation or response-size failures, preserve the exact primary error if cancellation fails, and release the reader lock best-effort."
+          if s.count(marker) != 1:
+              raise SystemExit(f"release marker count {s.count(marker)}")
+          p.write_text(s.replace(marker, marker + extra))
           PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
