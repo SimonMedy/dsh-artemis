@@ -8,9 +8,9 @@
 
 **Native ARTEMIS integration for DeepSeek Harness — a bounded Android observe / inspect / supervise surface for coding agents and humans.**
 
-`dsh-artemis` keeps ARTEMIS MCP as the agent-facing automation authority and adds a native DeepSeek Harness integration around it. The stable v1.0.0 scope focuses on safe observation, task/trace evidence, MCP setup and a reversible Harness plugin lifecycle.
+`dsh-artemis` keeps ARTEMIS MCP as the agent-facing automation authority and adds a native DeepSeek Harness integration around it. The stable v1.0.1 scope focuses on safe observation, task/trace evidence, MCP setup and a reversible Harness plugin lifecycle.
 
-## What ships in v1.0.0
+## What ships in v1.0.1
 
 - Native Android status and right-sidebar UI built with Harness primitives.
 - Explicit bounded screenshots and a human-facing live screen viewer.
@@ -32,12 +32,12 @@ See [`docs/product-vision.md`](docs/product-vision.md), [`docs/roadmap.md`](docs
 
 ## Install
 
-v1.0.0 is distributed as a tagged GitHub release. npm registry publication is intentionally disabled for this release.
+v1.0.1 is distributed as a tagged GitHub release. npm registry publication is intentionally disabled for this release.
 
 Install the plugin into a Harness profile:
 
 ```bash
-dsh plugin --profile my-profile add 'git+https://github.com/SimonMedy/dsh-artemis.git#v1.0.0'
+dsh plugin --profile my-profile add 'git+https://github.com/SimonMedy/dsh-artemis.git#v1.0.1'
 ```
 
 The plugin bundle is reversible: removing it from the profile must remove the plugin layer without patching Harness source or leaving stale Cordis state.
@@ -48,7 +48,7 @@ The plugin bundle is reversible: removing it from the profile must remove the pl
 
 ```bash
 npm exec --yes \
-  --package='git+https://github.com/SimonMedy/dsh-artemis.git#v1.0.0' \
+  --package='git+https://github.com/SimonMedy/dsh-artemis.git#v1.0.1' \
   -- dsh-artemis-mcp-config --artemis-root /absolute/path/to/artemis
 ```
 
@@ -78,7 +78,7 @@ Read [`SECURITY.md`](SECURITY.md) before changing Host routes, device controls, 
 
 ## Known limits
 
-These are intentionally outside the v1.0.0 stable contract:
+These are intentionally outside the v1.0.1 stable contract:
 
 - Back/Home/Recents/Rotate UI controls remain gated until ARTEMIS exposes a narrow inspected upstream contract; the plugin will not substitute a generic ADB/shell surface.
 - Replay remains gated because the pinned ARTEMIS replay path can materialize files/chunks.

@@ -15,10 +15,10 @@ Last updated: 2026-09-16
 | 1.5 — explicit screenshot observation | **DONE** | Bounded snapshot route, ephemeral preview and packaged DeepSeek Harness/Chromium capture merged through PR #17 |
 | 2 — live human screen | **DONE** | Bounded multi-frame transport, explicit Start/Stop viewer and packaged DeepSeek Harness/Chromium E2E merged through PR #18 |
 | 3 — bounded device controls | **BLOCKED** | Pinned ARTEMIS exposes Back/Home/Recents only through a broader action/ADB surface; no narrow configured-MCP/Admin transport and no canonical Rotate contract |
-| 4 — tasks, traces & visual QA | **PARTIAL** | Bounded task evidence PR #19, latest-trace drill-down PR #21 and ephemeral visual QA checkpoint PR #22 merged; replay and model-image handoff remain gated |
-| 5 — installation & agent experience | **PARTIAL** | MCP config + rules skill + truthful bounded setup/status UX are merged and reversible plugin lifecycle is proven; automatic profile mutation and vision affordances remain gated |
+| 4 — tasks, traces & visual QA | **PARTIAL** | Bounded evidence/trace/visual QA are merged; Harness `dsh-v0.1.6-alpha.1` now supports durable MCP image result attachments, but ARTEMIS screenshot state still returns `file://` and replay remains side-effect-gated |
+| 5 — installation & agent experience | **PARTIAL** | MCP config/rules/setup UX and reversible plugin lifecycle are merged; Harness ACP now accepts session-scoped `mcpServers`, while automatic Web/Cordis profile mutation and direct ARTEMIS vision handoff remain gated |
 | 6 — autonomous mobile computer-use | **PLANNED** | Build bounded code→build→ARTEMIS→observe→verify→fix workflows |
-| 7 — compatibility & polish | **ONGOING** | Hardening is merged through PR #116; v1.0.0 has an explicit MIT/tagged-GitHub stable scope, while real device/emulator smoke remains future dedicated-infrastructure validation and upstream-gated capabilities stay outside the stable contract |
+| 7 — compatibility & polish | **ONGOING** | Hardening is merged through PR #116 and official Harness `dsh-v0.1.6-alpha.1` compatibility through PR #119; v1.0.1 is the compatibility refresh while real device/emulator smoke and upstream-gated capabilities remain outside the stable contract |
 
 ## Non-negotiable foundations
 
@@ -63,7 +63,7 @@ Delivered:
 Remaining gates:
 - [ ] Replay stays separately policy-gated because pinned ARTEMIS replay can materialize chunks/files.
 - [ ] Add further evidence only when the upstream operation is confirmed read-only and side-effect-free.
-- [ ] Keep model image handoff gated until DeepSeek Harness provides a supported public Session-owned image handoff and vision can be checked through `LlmModelInfo.inputModalities`.
+- [ ] Harness `dsh-v0.1.6-alpha.1` can persist MCP image result blocks for vision-capable models, but ARTEMIS `mobile_get_device_state("screenshot")` still returns a local `file://` JPEG reference. Keep direct model handoff gated until ARTEMIS emits MCP image content or a general supported assistant-side image handoff exists.
 
 ## Phase 5 — installation and agent experience
 
@@ -82,7 +82,7 @@ Delivered:
 - [x] PR #48: root identity markers must also be non-symlink files, preventing `rules.md`/`__main__.py`/`pyproject.toml` redirection outside the configured checkout; Python symlinks remain supported intentionally.
 
 Remaining gates:
-- [ ] Keep profile installation explicit/non-destructive until DeepSeek Harness exposes a proven public reversible seam for patching the active profile with a sibling MCP row.
+- [ ] Harness ACP `session/new` / `session/resume` now accept session-scoped `mcpServers`, but the Web/Cordis plugin still lacks a proven public reversible seam for patching the active profile with a sibling MCP row. Keep Web profile installation explicit/non-destructive.
 - [ ] Continue using `dsh-artemis-mcp-config`; do not mutate Cordis files or accept arbitrary browser filesystem paths as shortcuts.
 - [ ] Add capability-aware vision affordances only after a public Session-owned image handoff exists.
 
@@ -97,7 +97,7 @@ Remaining gates:
 
 ## Phase 7 — compatibility and polish
 
-**Status: ONGOING — hardening merged through PR #116**
+**Status: ONGOING — hardening merged through PR #116; official Harness compatibility through PR #119**
 
 Delivered:
 - [x] PR #26: browser response baseline (`no-store`, `nosniff`) applies before route logic/trust rejection.
@@ -154,6 +154,7 @@ Delivered:
 - [x] PR #114: Harness MCP Cordis rendering now validates the pinned stdio schema shape for transport, serverName, command, args, env and cwd, preserves the upstream defaults for omitted args/env/cwd, and rejects malformed custom rows instead of coercing them.
 - [x] PR #116: ARTEMIS rules-skill byte limits now require positive safe integers at both the loader and plugin-config boundaries, preserving the 512 KiB default while rejecting precision-loss limits outside JavaScript’s exact integer domain.
 - [x] v1.0.0 release decision: MIT license, version `1.0.0`, tagged GitHub/Git-spec distribution, npm registry publication disabled, and known upstream/device-E2E limitations documented.
+- [x] PR #119: official DeepSeek Harness `dsh-v0.1.6-alpha.1` pin passes repository CI, real ARTEMIS daemon compatibility, byte-identical client generation, package/Cordis remove/reinstall and Chromium Android-panel E2E without runtime changes.
 - [x] Runtime-affecting PR heads continue to pass pinned DeepSeek Harness package/Cordis/Web/Chromium gates; ARTEMIS-facing changes also pass the real daemon compatibility gate.
 
 Remaining Phase 7 gates:
