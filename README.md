@@ -97,7 +97,7 @@ npm run check
 Useful references:
 
 - [`docs/development.md`](docs/development.md) — development and bundle workflow
-- [`docs/testing-strategy.md`](docs/testing-strategy.md) — deterministic, compatibility and E2E layers
+- [`docs/testing.md`](docs/testing.md) — deterministic, compatibility and E2E layers
 - [`docs/upstreams.md`](docs/upstreams.md) — pinned upstream revisions
 - [`docs/architecture.md`](docs/architecture.md) — trust boundaries and package architecture
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution expectations
