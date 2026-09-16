@@ -1,0 +1,30 @@
+name: Temporary Cordis stdio schema hardening
+
+on:
+  push:
+    branches:
+      - gpt/phase-7-cordis-stdio-schema
+    paths:
+      - .github/workflows/temp-cordis-stdio-schema.yml
+      - scripts/temp-patch-cordis-stdio-schema.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: true
+      - name: Harden Cordis stdio config shapes
+        run: |
+          node scripts/temp-patch-cordis-stdio-schema.mjs
+          npm run check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/integration/artemis-mcp-config.mjs test/artemis-mcp-config.test.mjs
+          git commit -m "fix: validate Cordis stdio config shapes"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
