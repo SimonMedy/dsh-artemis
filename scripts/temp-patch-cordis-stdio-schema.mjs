@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 
-function replaceOnce(text, oldText,newText, label) {
+function replaceOnce(text, oldText, newText, label) {
   const count = text.split(oldText).length - 1
   if (count !== 1) throw new Error(`${label}: expected one match, found ${count}`)
   return text.replace(oldText, newText)
@@ -8,22 +8,45 @@ function replaceOnce(text, oldText,newText, label) {
 
 const sourcePath = 'src/integration/artemis-mcp-config.mjs'
 let source = readFileSync(sourcePath, 'utf8')
+
 source = replaceOnce(
   source,
   "const REQUIRED_ARTEMIS_FILES = Object.freeze([\n",
   "const HARNESS_MCP_SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]{1,32}$/\n\nconst REQUIRED_ARTEMIS_FILES = Object.freeze([\n",
   'server-name pattern',
 )
+
 source = replaceOnce(
   source,
-  "export function renderHarnessMcpCordisRow(row) {\n  if (!row?.config) throw new TypeError('A Harness MCP row is required')\n  const config = row.config\n  if (typeof config.failOnStartupError !== 'boolean') throw new TypeError('Harness MCP failOnStartupError must be a boolean')\n  const lines = [",
-  "export function renderHarnessMcpCordisRow(row) {\n  if (!row?.config) throw new TypeError('A Harness MCP row is required')\n  const config = row.config\n  if (config.transport !== 'stdio') throw new TypeError(\"Harness MCP transport must be 'stdio'\")\n  if (typeof config.serverName !== 'string' || !HARNESS_MCP_SERVER_NAME_PATTERN.test(config.serverName)) {\n    throw new TypeError('Harness MCP serverName must match [A-Za-z0-9_-]{1,32}')\n  }\n  if (typeof config.command !== 'string') throw new TypeError('Harness MCP command must be a string')\n  const args = config.args === undefined ? [] : config.args\n  if (!Array.isArray(args) || args.some((value) => typeof value !== 'string')) {\n    throw new TypeError('Harness MCP args must be an array of strings')\n  }\n  const env = config.env === undefined ? {} : config.env\n  if (env === null || Array.isArray(env) || typeof env !== 'object') {\n    throw new TypeError('Harness MCP env must be an object of string values')\n  }\n  if (Object.values(env).some((value) => typeof value !== 'string')) {\n    throw new TypeError('Harness MCP env must be an object of string values')\n  }\n  const cwd = config.cwd === undefined ? '' : config.cwd\n  if (typeof cwd !== 'string') throw new TypeError('Harness MCP cwd must be a string')\n  if (typeof config.failOnStartupError !== 'boolean') throw new TypeError('Harness MCP failOnStartupError must be a boolean')\n  const lines = [",
+  "  const config = row.config\n  if (typeof config.failOnStartupError !== 'boolean') throw new TypeError('Harness MCP failOnStartupError must be a boolean')\n  const lines = [",
+  `  const config = row.config
+  if (config.transport !== 'stdio') throw new TypeError("Harness MCP transport must be 'stdio'")
+  if (typeof config.serverName !== 'string' || !HARNESS_MCP_SERVER_NAME_PATTERN.test(config.serverName)) {
+    throw new TypeError('Harness MCP serverName must match [A-Za-z0-9_-]{1,32}')
+  }
+  if (typeof config.command !== 'string') throw new TypeError('Harness MCP command must be a string')
+  const args = config.args === undefined ? [] : config.args
+  if (!Array.isArray(args) || args.some((value) => typeof value !== 'string')) {
+    throw new TypeError('Harness MCP args must be an array of strings')
+  }
+  const env = config.env === undefined ? {} : config.env
+  if (env === null || Array.isArray(env) || typeof env !== 'object') {
+    throw new TypeError('Harness MCP env must be an object of string values')
+  }
+  if (Object.values(env).some((value) => typeof value !== 'string')) {
+    throw new TypeError('Harness MCP env must be an object of string values')
+  }
+  const cwd = config.cwd === undefined ? '' : config.cwd
+  if (typeof cwd !== 'string') throw new TypeError('Harness MCP cwd must be a string')
+  if (typeof config.failOnStartupError !== 'boolean') throw new TypeError('Harness MCP failOnStartupError must be a boolean')
+  const lines = [`,
   'renderer schema validation',
 )
+
 source = replaceOnce(
   source,
   "    `    args: ${json(Array.from(config.args ?? []))}`,\n    `    cwd: ${json(config.cwd)}`,\n    '    env:',\n  ]\n  for (const [key, value] of Object.entries(config.env ?? {})) {",
-  "    `    args: ${json(args)}`,\n    `     cwd: ${json(cwd)}`,\n    '    env:',\n  ]\n  for (const [key, value] of Object.entries(env)) {",
+  "    `    args: ${json(args)}`,\n    `    cwd: ${json(cwd)}`,\n    '    env:',\n  ]\n  for (const [key, value] of Object.entries(env)) {",
   'renderer normalized values',
 )
 writeFileSync(sourcePath, source)
@@ -75,8 +98,8 @@ const addition = `test('validates Cordis stdio config shapes instead of coercing
       failOnStartupError: false,
     },
   })
-  assert.match(defaults, /args: \[\]/)
-  assert.match(defaults, /cwd: ""/)
+  assert.ok(defaults.includes('    args: []'))
+  assert.ok(defaults.includes('    cwd: ""'))
   assert.ok(defaults.includes('    env:\\n    failOnStartupError: false'))
 })
 
