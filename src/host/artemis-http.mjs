@@ -1,4 +1,5 @@
 import { parseDecimalContentLength } from '../shared/content-length.mjs'
+import { isValidTimerDelay, MAX_TIMER_DELAY_MS } from '../shared/timer-delay.mjs'
 import { isJsonContentType } from '../shared/json-content-type.mjs'
 import { BoundedByteBuffer } from './bounded-byte-buffer.mjs'
 const DEFAULT_BASE_URL = 'http://127.0.0.1:8000'
@@ -305,8 +306,8 @@ export class ArtemisHttpClient {
     fetchImpl = globalThis.fetch,
   } = {}) {
     if (typeof fetchImpl !== 'function') throw new TypeError('fetchImpl must be a function')
-    if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) throw new TypeError('timeoutMs must be a positive integer')
-    if (!Number.isInteger(snapshotTimeoutMs) || snapshotTimeoutMs <= 0) throw new TypeError('snapshotTimeoutMs must be a positive integer')
+    if (!isValidTimerDelay(timeoutMs)) throw new TypeError(`timeoutMs must be a positive integer no greater than ${MAX_TIMER_DELAY_MS}`)
+    if (!isValidTimerDelay(snapshotTimeoutMs)) throw new TypeError(`snapshotTimeoutMs must be a positive integer no greater than ${MAX_TIMER_DELAY_MS}`)
     if (!Number.isSafeInteger(maxJsonBytes) || maxJsonBytes <= 0) throw new TypeError('maxJsonBytes must be a positive safe integer')
     if (!Number.isSafeInteger(maxFrameBytes) || maxFrameBytes <= 0 || maxFrameBytes > MAX_CONFIGURED_FRAME_BYTES) {
       throw new TypeError('maxFrameBytes must be a positive safe integer with multipart overhead headroom')

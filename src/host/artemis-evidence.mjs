@@ -2,6 +2,7 @@ import { parseDecimalContentLength } from '../shared/content-length.mjs'
 import { isJsonContentType } from '../shared/json-content-type.mjs'
 import { ArtemisProtocolError } from './artemis-http.mjs'
 import { DSH_ARTEMIS_PROTOCOL_VERSION, EVIDENCE_ROUTE, TRACE_EVIDENCE_ROUTE } from '../shared/protocol.mjs'
+import { isValidTimerDelay } from '../shared/timer-delay.mjs'
 
 const MAX_GOAL_CHARS = 512
 const MAX_ACTION_CHARS = 160
@@ -116,7 +117,7 @@ async function getJson(client, endpoint) {
     throw new TypeError('A configured ARTEMIS HTTP client is required')
   }
   const maxBytes = Number.isSafeInteger(client.maxJsonBytes) && client.maxJsonBytes > 0 ? client.maxJsonBytes : 1_048_576
-  const timeoutMs = Number.isInteger(client.timeoutMs) && client.timeoutMs > 0 ? client.timeoutMs : 2_000
+  const timeoutMs = isValidTimerDelay(client.timeoutMs) ? client.timeoutMs : 2_000
   let response
   try {
     response = await client.fetchImpl(new URL(endpoint, client.baseUrl), {
