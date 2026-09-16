@@ -1,6 +1,6 @@
 {
   "name": "dsh-artemis",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "description": "Native ARTEMIS integration for DeepSeek Harness",
   "license": "MIT",

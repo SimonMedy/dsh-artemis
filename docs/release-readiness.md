@@ -1,6 +1,6 @@
 # Release readiness
 
-`dsh-artemis` v1.0.1 is the current stable GitHub-release scope. It is a compatibility-only refresh of the v1.0.0 contract for official DeepSeek Harness `dsh-v0.1.6-alpha.1`; npm registry publication remains intentionally disabled with `private: true`, so the supported distribution path is the tagged GitHub release / Git spec.
+`dsh-artemis` v1.1.0 is the current stable GitHub-release scope. It adds validated ACP/headless session-scoped ARTEMIS MCP configuration on top of the v1.0.x runtime and compatibility baseline; npm registry publication remains intentionally disabled with `private: true`, so the supported distribution path is the tagged GitHub release / Git spec.
 
 ## What is already proven
 
@@ -38,6 +38,10 @@
 - Keep the v1.0.0 MIT decision, repository `LICENSE` and package license metadata consistent in future releases.
 - Harness `dsh-v0.1.6-alpha.1` now persists MCP image result blocks as durable model attachments when the active model supports images, but ARTEMIS screenshot state still returns a local `file://` JPEG reference rather than an MCP image block. Keep direct ARTEMIS model-image handoff gated until that upstream result becomes an MCP image or Harness exposes a general assistant-side image handoff seam.
 - Keep broader device controls gated until ARTEMIS exposes a narrow inspected upstream contract; do not substitute generic ADB/shell access.
+
+## v1.1.0 feature decision
+
+v1.1.0 adds the PR #121 ACP/headless `mcpServers` generator while keeping Cordis as the default Web/profile format. The release does not add Session/profile mutation, browser privileges or new device-control surfaces. Its feature evidence includes exact-shape unit/CLI tests, a real pinned ARTEMIS foreign-cwd stdio launch, and full Harness package/Cordis/Web/Chromium compatibility.
 
 ## v1.0.1 compatibility decision
 
