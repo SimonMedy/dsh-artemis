@@ -19,6 +19,7 @@
 - Host and evidence bounded JSON readers cancel unread response bodies when reader acquisition fails, while best-effort cancellation failures never replace the original acquisition error.
 - After reader acquisition, Host and evidence bounded JSON streams cancel the acquired reader on read, chunk-validation or response-size failures, preserve the exact primary error if cancellation fails, and release the reader lock best-effort.
 - Browser bounded JSON streams apply the same acquired-reader cleanup contract; the checked browser bundle is regenerated only through the pinned DeepSeek Harness toolchain and remains byte-for-byte reproducible under compatibility CI.
+- Browser snapshot streams apply the same acquired-reader cleanup contract for read, chunk-validation and size-limit failures; cancellation and lock-release cleanup remain best-effort without replacing the primary error, and the checked bundle remains pinned-Harness reproducible.
 
 ## Remaining release gates
 
