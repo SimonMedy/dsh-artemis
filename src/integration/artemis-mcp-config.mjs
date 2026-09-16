@@ -147,7 +147,7 @@ export function renderHarnessMcpCordisRow(row) {
     '    env:',
   ]
   for (const [key, value] of Object.entries(config.env ?? {})) {
-    lines.push(`      ${key}: ${json(value)}`)
+    lines.push(`      ${json(key)}: ${json(value)}`)
   }
   lines.push(`    failOnStartupError: ${config.failOnStartupError ? 'true' : 'false'}`)
   return `${lines.join('\n')}\n`
