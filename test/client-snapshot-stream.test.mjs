@@ -14,6 +14,45 @@ function responseWithReader(reader, headers = {}) {
   }
 }
 
+test('snapshot read failure cancels the reader and preserves the original error', async () => {
+  const readFailure = new Error('read failed')
+  let cancelled = false
+  let released = false
+  const reader = {
+    async read() { throw readFailure },
+    cancel() {
+      cancelled = true
+      return Promise.reject(new Error('cancel failed'))
+    },
+    releaseLock() { released = true },
+  }
+  await assert.rejects(
+    fetchSnapshot({ locationLike, fetchImpl: async () => responseWithReader(reader) }),
+    (error) => error === readFailure,
+  )
+  assert.equal(cancelled, true)
+  assert.equal(released, true)
+})
+
+test('snapshot invalid chunk cancels the reader without masking the protocol error', async () => {
+  let cancelled = false
+  let released = false
+  const reader = {
+    async read() { return { done: false, value: 'not-bytes' } },
+    cancel() {
+      cancelled = true
+      throw new Error('cancel failed synchronously')
+    },
+    releaseLock() { released = true },
+  }
+  await assert.rejects(
+    fetchSnapshot({ locationLike, fetchImpl: async () => responseWithReader(reader) }),
+    /invalid response body/,
+  )
+  assert.equal(cancelled, true)
+  assert.equal(released, true)
+})
+
 test('snapshot rejects non-Uint8Array stream chunks before size accounting', async () => {
   let released = false
   const reader = {
