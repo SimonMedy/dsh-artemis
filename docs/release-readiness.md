@@ -27,6 +27,7 @@
 - Harness MCP Cordis rendering quotes both environment keys and values as JSON-compatible YAML scalars, so hostile/custom env-key text cannot alter the emitted configuration structure.
 - Harness MCP Cordis startup-error policy fails closed on type mismatches: `failOnStartupError` must be a real boolean, so custom rows cannot silently invert policy through JavaScript truthiness.
 - Harness MCP Cordis stdio rows are validated against the pinned Harness schema before rendering: transport/serverName/command/args/env/cwd types are explicit, omitted args/env/cwd retain the upstream defaults, and malformed iterable/object inputs are not coerced.
+- Rules-skill resource limits stay in the safe-integer domain at both exported loader and plugin configuration boundaries; the product default remains 512 KiB and overrange custom limits fail closed.
 
 ## Remaining release gates
 
